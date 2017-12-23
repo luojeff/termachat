@@ -1,0 +1,52 @@
+Systems Programming (Pd. 5) Project 2
+
+MEMBERS:
+Jeffrey Luo
+Gian Tricarico
+Daniel Pae
+
+
+PROJECT DESCRIPTION:
+A chatroom program through intranet that runs purely in the terminal. Allows clients on different computers to connect to
+a chatroom and communicate by messaging. Clients have the ability to create chatrooms, either public or private,
+and invite friends to join.
+
+User interface & other details:
+- Will be all run in the terminal
+- When a client runs (assuming the server has been started), the program will prompt for a display name
+- Client starts off in a global chatroom
+- Messages sent by the client and other clients are shown in the terminal, all prefixed by their display name
+- To send a message, the client can type in the "prompt" (like in a bash shell) and hit ENTER
+- To create a smaller chatroom, the client can type in a "command" (prefixed with a '#' in the prompt)
+- Clients and other members can join individual chatrooms using commands (perhaps '#join <chatroom id>')
+- Clients can also send private messages and delete chatrooms using a similar command syntax
+- When joining an existing chatroom, each client should see the existing conversation
+
+
+TECHNICAL DESIGN:
+Key topics & concepts:
+- Networking for connecting clients on different machines on the same network
+- Using file information when sending files, such as size
+- Subprocesses; main server breaks into sub-servers, each acting as individual chatrooms
+- Signals to handle client inputs. When exiting, notifications should be sent to the chatroom
+- Semaphores to handle multiple client requests to server
+- Pipes to send information between servers and clients
+
+Data structures:
+- Queues??
+
+Algorithms:
+- 
+
+Workload breakdown:
+-
+
+
+TIMELINE:
+by ??/??/??: Setup basic server and client connection. (Handshake, pipes)
+by ??/??/??: Extend to include subservers that handle multiple clients (not through intranet)
+by ??/??/??: Setup networking to allow clients to connect to chatroom servers running on other machines
+by ??/??/??: Setup semaphores to handle multiple clients in a chatroom
+by ??/??/??: Setup command handling (chatroom creation/deletion, private messaging)
+by ??/??/??: Setup basic file transfer by writing bytes (change client-side to handle this)
+by ??/??/??: 
