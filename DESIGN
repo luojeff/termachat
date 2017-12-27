@@ -60,4 +60,4 @@ by 2018-01-10: Setup semaphores to handle multiple clients in a chatroom
 by 2018-01-12: Set up commands for creating and deleting public chatrooms
 by 2018-01-15: Set up command for making private chatrooms and passwords + private messaging
 by 2018-01-17: Set up command for moving between chatrooms
-by 2018-01-19: Set up basic file transfer by writing bytes (change client-side to handle this) + finish debugging anything that behaves weirdly
+by 2018-01-19: Set up basic file transfer by writing bytes (change client-side to handle this) + write README
