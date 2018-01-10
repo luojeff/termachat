@@ -30,13 +30,22 @@ int server_setup() {
   hints->ai_family = AF_INET;  //IPv4 address
   hints->ai_socktype = SOCK_STREAM;  //TCP socket
   hints->ai_flags = AI_PASSIVE;  //Use all valid addresses
-  getaddrinfo(NULL, PORT, hints, &results); //NULL means use local address
 
-  //bind the socket to address and port
-  i = bind( sd, results->ai_addr, results->ai_addrlen );
+  getaddrinfo(NULL, PORT, hints, &results);
+
+  int qwerty = 0;
+  
+  while((i = bind( sd, results->ai_addr, results->ai_addrlen)) != 0){
+    if(qwerty < 5){
+      qwerty++;
+      getaddrinfo(NULL, PORT + qwerty, hints, &results);
+    }
+  }
+  
   error_check( i, "server bind" );
   printf("[server] socket bound\n");
 
+  
   //set socket to listen state
   i = listen(sd, 10);
   error_check( i, "server listen" );
@@ -66,6 +75,8 @@ int server_connect(int sd) {
 
   to_client = accept(sd, (struct sockaddr *)&client_socket, &sock_size);
 
+  printf("[server] new connection with %d", to_client);
+  
   return to_client;
 }
 
