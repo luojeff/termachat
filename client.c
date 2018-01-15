@@ -13,9 +13,7 @@ static void client_sighandler(int signo){
   }
 }
 
-int main(int argc, char **argv) {
-
-  
+int main(int argc, char **argv) {  
 
   /* Handle user signals */
   signal(SIGINT, client_sighandler);
@@ -34,21 +32,19 @@ int main(int argc, char **argv) {
   char *ip_addr, buffer[BUFFER_SIZE];
 
   if (argc == 2) {
+    ip_addr = argv[1];
     printf("Attempting to connect to %s:%s\n", ip_addr, int_to_str(PORT));
-    if((server_socket = client_setup( ip_addr, int_to_str(PORT))) != -1)    
+    if((server_socket = client_setup(ip_addr, int_to_str(PORT))) != -1)    
       printf("Connected to server!\n");
     else
       printf("Error: failed to connect!\n");
-
-    ip_addr = argv[2];
   } else {
-    printf("Attempting to connect to %s:%s\n", TEST_IP, int_to_str(PORT));
-    if((server_socket = client_setup( TEST_IP, int_to_str(PORT))) != -1)
+    ip_addr = TEST_IP;
+    printf("Attempting to connect to %s:%s\n", ip_addr, int_to_str(PORT));
+    if((server_socket = client_setup(ip_addr, int_to_str(PORT))) != -1)
       printf("Connected to server!\n");
     else
       printf("Error: failed to connect!\n");
-
-    ip_addr = TEST_IP;
   }
 
   current_socket = server_socket;
