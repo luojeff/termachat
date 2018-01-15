@@ -1,10 +1,20 @@
 #include "networking.h"
+#include <math.h>
 
 void error_check( int i, char *s ) {
   if ( i < 0 ) {
     printf("[%s] error %d: %s\n", s, errno, strerror(errno) );
     exit(1);
   }
+}
+
+char *int_to_str(int val){
+  int SIZE = 10; //(int)((ceil(log10(val))+1)*sizeof(char));
+  
+  char *str = malloc(SIZE * sizeof(char));
+
+  sprintf(str, "%d", val);
+  return str;
 }
 
 /*=========================
@@ -16,7 +26,7 @@ void error_check( int i, char *s ) {
 
   returns the socket descriptor
   =========================*/
-int server_setup() {
+int server_setup(int port) {
   int sd, i;
 
   //create the socket
@@ -25,31 +35,34 @@ int server_setup() {
   printf("[SERVER] socket created\n");
 
   //setup structs for getaddrinfo
-  struct addrinfo * hints, * results;
+  struct addrinfo *hints, *results;
   hints = calloc(1, sizeof(struct addrinfo));
-  hints->ai_family = AF_INET;  //IPv4 address
-  hints->ai_socktype = SOCK_STREAM;  //TCP socket
-  hints->ai_flags = AI_PASSIVE;  //Use all valid addresses
+  hints->ai_family = AF_INET;  // IPv4 address
+  hints->ai_socktype = SOCK_STREAM;  // TCP socket
+  hints->ai_flags = AI_PASSIVE;  // Use all valid addresses
 
-  getaddrinfo(NULL, PORT, hints, &results);
-
-  int qwerty = 0;
+  getaddrinfo(NULL, int_to_str(port), hints, &results);
   
-  while((i = bind( sd, results->ai_addr, results->ai_addrlen)) != 0){
-    if(qwerty < 5){
-      qwerty++;
-      getaddrinfo(NULL, PORT + qwerty, hints, &results);
-    }
+  /* Attempt successive ports */
+  int inc = 0;
+  while((i = bind( sd, results->ai_addr, results->ai_addrlen)) != 0) {
+    if(inc < 5){
+      inc++;
+      getaddrinfo(NULL, int_to_str(port + inc), hints, &results);
+    } else
+      break;
   }
+
+  port += inc;
   
   error_check( i, "server bind" );
-  printf("[SERVER] socket bound\n");
+  printf("[SERVER: %s] socket bound\n", int_to_str(port));
 
   
   //set socket to listen state
   i = listen(sd, 10);
   error_check( i, "server listen" );
-  printf("[SERVER] socket in listen state\n");
+  printf("[SERVER: %s] socket in listen state\n", int_to_str(port));
 
   //free the structs used by getaddrinfo
   free(hints);
@@ -69,6 +82,7 @@ int server_setup() {
   to the client.
   =========================*/
 int server_connect(int sd) {
+  printf("server_connect %d starting\n", sd);
   int to_client;
   socklen_t sock_size;
   struct sockaddr_storage client_socket;
@@ -105,7 +119,8 @@ int client_setup(char * server) {
   hints = calloc(1, sizeof(struct addrinfo));
   hints->ai_family = AF_INET;  //IPv4
   hints->ai_socktype = SOCK_STREAM;  //TCP socket
-  getaddrinfo(server, PORT, hints, &results);
+
+  getaddrinfo(server, int_to_str(PORT), hints, &results);
 
   //connect to the server
   //connect will bind the socket for us

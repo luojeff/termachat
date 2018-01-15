@@ -2,74 +2,161 @@
 
 void process(char *s);
 void subserver(int from_client);
-void handle_command(char *, char **);
+void handle_groupchat_command(char *, char **);
+void handle_main_command(char *, char **);
 
-int main() {
+int GPORT = PORT;
 
-  int listen_socket;
-  int f;
-  listen_socket = server_setup();
 
-  while (1) {
-
-    int client_socket = server_connect(listen_socket);
-    f = fork();
-    if (f == 0)
-      subserver(client_socket);
-    else
-      close(client_socket);
+static void sighandler(int signo){
+  switch(signo) {
+  case SIGINT:
+    printf("Process ended due to SIGINT\n");
+    exit(0);
+  case SIGUSR1:
+    printf("Parent PID: %d\n", getppid());
+    break;
   }
 }
 
-void subserver(int client_socket) {
-  char buffer[BUFFER_SIZE];
 
-  while (read(client_socket, buffer, sizeof(buffer))) {
+int main() {
+
+  signal(SIGINT, sighandler);
+  signal(SIGUSR1, sighandler);
+
+  int global_listen_socket = server_setup(GPORT++);
+  
+  printf("global_listen_socket = %d\n", global_listen_socket);
+  
+  char main_buffer[BUFFER_SIZE];
+  int global_client_socket = server_connect(global_listen_socket);
+  printf("global_client_socket = %d\n", global_client_socket);
+
+  
+  while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {
+    
+    printf("[MAIN %d]: received: [%s]\n", getpid(), main_buffer);
+
+
+    // Ends server completely
+    if (!strcmp(main_buffer, "END")) {
+      break;
+    }
+
+      
+    char *to_write;
+    handle_main_command(main_buffer, &to_write);
+    write(global_client_socket, to_write, sizeof(main_buffer));
+  }
+  
+  close(global_client_socket);
+}
+
+void subserver(int socket) {
+  char buffer[BUFFER_SIZE];
+  printf("[SUB %d]: Get in\n", getpid());
+
+  
+  while (read(socket, buffer, sizeof(buffer))) {
     printf("[SUB %d] received: [%s]\n", getpid(), buffer);
     //process(buffer);
 
     char *to_write;   
 
-    handle_command(buffer, &to_write);
-    write(client_socket, to_write, sizeof(buffer));
+    handle_groupchat_command(buffer, &to_write);
+    write(socket, to_write, sizeof(buffer));
   }
   
-  close(client_socket);
+  close(socket);
   exit(0);
 }
 
-/* Creates group chat server */
-void group_chat(){
-}
-
-/* subserver method that handles command from client.
-CURRENTLY SUPPORTED:
-'do' -- for testing
-'connect <id>'
- */
-
-void handle_command(char *s, char **to_client){
-  if(strcmp(s, "do") == 0)
+/* subserver method that handles commands from a client in a groupchat
+   CURRENTLY SUPPORTED:
+   'do' -- for testing
+   'connect <id>'
+*/
+void handle_groupchat_command(char *s, char **to_client){
+  if(strcmp(s, "do") == 0) {
+    
     *to_client = "success";
-  else if(strcmp(s, "connect") == 0) {
+  
+  } else if(strcmp(s, "quit") == 0) {
+    
     // connect to GLOBAL automatically
     *to_client = "success"; // SEND ID BACK!!!
     
-  } else if (strcmp(s, "list") == 0){
+  } else if (strcmp(s, "members") == 0) {
+    
     /* List ALL created SUBGROUPS */
     *to_client = "success";
-  } else
+    
+  } else {
+    
     *to_client = "fail";
+  }
+}
+
+
+/* 
+   Handles command provided by string s.
+   Sets to_client to a return string, which should be
+   sent back to the client 
+*/
+void handle_main_command(char *s, char **to_client) {
+  if(strcmp(s, "list") == 0) {
+    /* List ALL created CHATROOMS */
+    
+    *to_client = "chatroom1: 2 people\nchatroom2: 3 people";
+  
+  } else if(strcmp(s, "join chatroom1") == 0) {
+    
+    // connect to chat room
+    *to_client = "10002"; // SEND PORT BACK!!!
+    
+  } else if (strcmp(s, "create chatroom2") == 0) {
+    /* Make sure chatroom doesn't already exist! */    
+    
+    // FORK SUBSERVER
+    int lis_sock_1 = server_setup(GPORT++);
+    printf("lis_sock_1 = %d\n", lis_sock_1);    
+    
+    int f = fork();
+    //printf("fork process = %d\n", f);    
+    
+    if (f == 0) {
+      int client_socket1 = server_connect(lis_sock_1);
+      printf("client_socket1 = %d\n", client_socket1);
+      
+      if (client_socket1 != -1) {
+        subserver(client_socket1);
+
+	printf("Ended!\n");
+      } else {
+	printf("Error: failed to create groupchat!\n");
+
+	close(client_socket1);
+      }
+      
+    } else {
+      *to_client = "success";
+    }
+
+    
+  } else {
+    *to_client = "invalid command";
+  }  
 }
 
 /*
-void process(char * s) {
+  void process(char * s) {
   while (*s) {
-    if (*s >= 'a' && *s <= 'z')
-      *s = ((*s - 'a') + 13) % 26 + 'a';
-    else  if (*s >= 'A' && *s <= 'Z')
-      *s = ((*s - 'a') + 13) % 26 + 'a';
-    s++;
+  if (*s >= 'a' && *s <= 'z')
+  *s = ((*s - 'a') + 13) % 26 + 'a';
+  else  if (*s >= 'A' && *s <= 'Z')
+  *s = ((*s - 'a') + 13) % 26 + 'a';
+  s++;
   }
-}
+  }
 */
