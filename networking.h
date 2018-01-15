@@ -9,17 +9,19 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+#include <math.h>
 
 #ifndef NETWORKING_H
 #define NETWORKING_H
 
+#define ATTEMPTS 10
 #define BUFFER_SIZE 256
 #define PORT 10001
 #define TEST_IP "127.0.0.1"
 
-void error_check(int i, char *s);
+void error_check(int, char *);
 int server_setup(int);
-int server_connect(int sd);
-int client_setup(char * server);
+int server_connect(int);
+int client_setup(char *, char *);
 
 #endif

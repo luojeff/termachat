@@ -1,4 +1,5 @@
 #include "networking.h"
+#include "helper.h"
 
 void process(char *s);
 void subserver(int from_client);
@@ -6,7 +7,6 @@ void handle_groupchat_command(char *, char **);
 void handle_main_command(char *, char **);
 
 int GPORT = PORT;
-
 
 static void sighandler(int signo){
   switch(signo) {
@@ -21,29 +21,25 @@ static void sighandler(int signo){
 
 
 int main() {
-
   signal(SIGINT, sighandler);
   signal(SIGUSR1, sighandler);
 
   int global_listen_socket = server_setup(GPORT++);
   
-  printf("global_listen_socket = %d\n", global_listen_socket);
+  //printf("global_listen_socket = %d\n", global_listen_socket);
   
   char main_buffer[BUFFER_SIZE];
   int global_client_socket = server_connect(global_listen_socket);
-  printf("global_client_socket = %d\n", global_client_socket);
-
+  //printf("global_client_socket = %d\n", global_client_socket);
   
   while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {
     
-    printf("[MAIN %d]: received: [%s]\n", getpid(), main_buffer);
-
+    printf("[MAIN %d]: received [%s]\n", getpid(), main_buffer);
 
     // Ends server completely
-    if (!strcmp(main_buffer, "END")) {
+    if (!strcmp(main_buffer, "end")) {
       break;
     }
-
       
     char *to_write;
     handle_main_command(main_buffer, &to_write);
@@ -55,15 +51,14 @@ int main() {
 
 void subserver(int socket) {
   char buffer[BUFFER_SIZE];
-  printf("[SUB %d]: Get in\n", getpid());
+  //  printf("[SUB %d]: Get in\n", getpid());
 
   
   while (read(socket, buffer, sizeof(buffer))) {
-    printf("[SUB %d] received: [%s]\n", getpid(), buffer);
+    printf("[SUB %d]: received [%s]\n", getpid(), buffer);
     //process(buffer);
-
-    char *to_write;   
-
+    
+    char *to_write;
     handle_groupchat_command(buffer, &to_write);
     write(socket, to_write, sizeof(buffer));
   }
@@ -110,7 +105,7 @@ void handle_main_command(char *s, char **to_client) {
     
     *to_client = "chatroom1: 2 people\nchatroom2: 3 people";
   
-  } else if(strcmp(s, "join chatroom1") == 0) {
+  } else if(strcmp(s, "join chatroom1") == 0) {    
     
     // connect to chat room
     *to_client = "10002"; // SEND PORT BACK!!!
@@ -120,23 +115,23 @@ void handle_main_command(char *s, char **to_client) {
     
     // FORK SUBSERVER
     int lis_sock_1 = server_setup(GPORT++);
-    printf("lis_sock_1 = %d\n", lis_sock_1);    
+    //printf("lis_sock_1 = %d\n", lis_sock_1);
+
+    printf("Chatroom created on port %s\n", int_to_str(GPORT-1));
     
     int f = fork();
     //printf("fork process = %d\n", f);    
     
     if (f == 0) {
       int client_socket1 = server_connect(lis_sock_1);
-      printf("client_socket1 = %d\n", client_socket1);
+      //printf("client_socket1 = %d\n", client_socket1);
       
       if (client_socket1 != -1) {
         subserver(client_socket1);
 
-	printf("Ended!\n");
+	printf("Chatroom ended!\n");
       } else {
 	printf("Error: failed to create groupchat!\n");
-
-	close(client_socket1);
       }
       
     } else {

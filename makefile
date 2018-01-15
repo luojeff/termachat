@@ -1,25 +1,25 @@
 forking: client fserver
 
 fserver: forking_server.o networking.o
-	gcc -o server forking_server.o networking.o
+	gcc -o server forking_server.o networking.o helper.o
 
 client: client.o networking.o
-	gcc -o client client.o networking.o
+	gcc -o client client.o networking.o helper.o
 
-client.o: client.c networking.h
+client.o: client.c networking.h helper.h
 	gcc -c client.c
 
-forking_server.o: forking_server.c networking.h
+forking_server.o: forking_server.c networking.h helper.h
 	gcc -c forking_server.c
 
-networking.o: networking.c networking.h
+networking.o: networking.c networking.h helper.h
 	gcc -c networking.c
+
+helper.o:
+	gcc -c helper.c
 
 clean:
 	rm *.o
-	rm *~
-
-
 
 
 

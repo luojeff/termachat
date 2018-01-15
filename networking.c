@@ -1,20 +1,11 @@
 #include "networking.h"
-#include <math.h>
+#include "helper.h"
 
 void error_check( int i, char *s ) {
   if ( i < 0 ) {
     printf("[%s] error %d: %s\n", s, errno, strerror(errno) );
     exit(1);
   }
-}
-
-char *int_to_str(int val){
-  int SIZE = 10; //(int)((ceil(log10(val))+1)*sizeof(char));
-  
-  char *str = malloc(SIZE * sizeof(char));
-
-  sprintf(str, "%d", val);
-  return str;
 }
 
 /*=========================
@@ -32,7 +23,7 @@ int server_setup(int port) {
   //create the socket
   sd = socket( AF_INET, SOCK_STREAM, 0 );
   error_check( sd, "server socket" );
-  printf("[SERVER] socket created\n");
+  printf("[NETWORK]: socket created\n");
 
   //setup structs for getaddrinfo
   struct addrinfo *hints, *results;
@@ -46,7 +37,7 @@ int server_setup(int port) {
   /* Attempt successive ports */
   int inc = 0;
   while((i = bind( sd, results->ai_addr, results->ai_addrlen)) != 0) {
-    if(inc < 5){
+    if(inc < ATTEMPTS){
       inc++;
       getaddrinfo(NULL, int_to_str(port + inc), hints, &results);
     } else
@@ -56,13 +47,13 @@ int server_setup(int port) {
   port += inc;
   
   error_check( i, "server bind" );
-  printf("[SERVER: %s] socket bound\n", int_to_str(port));
+  printf("[NETWORK]: socket bound to port %s\n", int_to_str(port));
 
   
   //set socket to listen state
   i = listen(sd, 10);
   error_check( i, "server listen" );
-  printf("[SERVER: %s] socket in listen state\n", int_to_str(port));
+  printf("[NETWORK]: socket at port %s in listen state\n", int_to_str(port));
 
   //free the structs used by getaddrinfo
   free(hints);
@@ -82,31 +73,33 @@ int server_setup(int port) {
   to the client.
   =========================*/
 int server_connect(int sd) {
-  printf("server_connect %d starting\n", sd);
+  //printf("server_connect %d starting\n", sd);
   int to_client;
   socklen_t sock_size;
   struct sockaddr_storage client_socket;
 
   to_client = accept(sd, (struct sockaddr *)&client_socket, &sock_size);
 
-  printf("[SERVER] new connection with %d", to_client);
+  printf("[NETWORK]: new connection with %d\n", to_client);
   
   return to_client;
 }
 
 /*=========================
   client_setup
-  args: int * to_server
+  args: int * server
 
-  to_server is a string representing the server address
+  server is a string representing the server address
+
+  port is self-explanatory
 
   create and connect a socket to a server socket that is
   in the listening state
 
   returns the file descriptor for the socket
   =========================*/
-int client_setup(char * server) {
-  int sd, i;
+int client_setup(char *server, char *port) {
+  int sd, i, inc = 0;
 
   //create the socket
   sd = socket( AF_INET, SOCK_STREAM, 0 );
@@ -120,12 +113,13 @@ int client_setup(char * server) {
   hints->ai_family = AF_INET;  //IPv4
   hints->ai_socktype = SOCK_STREAM;  //TCP socket
 
-  getaddrinfo(server, int_to_str(PORT), hints, &results);
+  getaddrinfo(server, port, hints, &results);
 
   //connect to the server
   //connect will bind the socket for us
   i = connect( sd, results->ai_addr, results->ai_addrlen );
-  error_check( 1, "client connect" );
+  
+  error_check( 1, "client connect");
 
   free(hints);
   freeaddrinfo(results);
