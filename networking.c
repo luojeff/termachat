@@ -22,7 +22,7 @@ int server_setup() {
   //create the socket
   sd = socket( AF_INET, SOCK_STREAM, 0 );
   error_check( sd, "server socket" );
-  printf("[server] socket created\n");
+  printf("[SERVER] socket created\n");
 
   //setup structs for getaddrinfo
   struct addrinfo * hints, * results;
@@ -43,13 +43,13 @@ int server_setup() {
   }
   
   error_check( i, "server bind" );
-  printf("[server] socket bound\n");
+  printf("[SERVER] socket bound\n");
 
   
   //set socket to listen state
   i = listen(sd, 10);
   error_check( i, "server listen" );
-  printf("[server] socket in listen state\n");
+  printf("[SERVER] socket in listen state\n");
 
   //free the structs used by getaddrinfo
   free(hints);
@@ -75,7 +75,7 @@ int server_connect(int sd) {
 
   to_client = accept(sd, (struct sockaddr *)&client_socket, &sock_size);
 
-  printf("[server] new connection with %d", to_client);
+  printf("[SERVER] new connection with %d", to_client);
   
   return to_client;
 }
