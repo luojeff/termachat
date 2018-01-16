@@ -67,10 +67,10 @@ void subserver(int socket) {
   exit(0);
 }
 
-/* subserver method that handles commands from a client in a groupchat
-   CURRENTLY SUPPORTED:
-   'do' -- for testing
-   'connect <id>'
+/* 
+subserver method that handles commands from a client in a groupchat
+
+
 */
 void handle_groupchat_command(char *s, char **to_client){
   if(strcmp(s, "do") == 0) {
@@ -89,7 +89,7 @@ void handle_groupchat_command(char *s, char **to_client){
     
   } else {
     
-    *to_client = "fail";
+    *to_client = "invalid command";
   }
 }
 
@@ -98,6 +98,10 @@ void handle_groupchat_command(char *s, char **to_client){
    Handles command provided by string s.
    Sets to_client to a return string, which should be
    sent back to the client 
+
+
+   WILL NEED TO BE PARSED EVENTUALLY!
+
 */
 void handle_main_command(char *s, char **to_client) {
   if(strcmp(s, "list") == 0) {
@@ -117,7 +121,7 @@ void handle_main_command(char *s, char **to_client) {
     int lis_sock_1 = server_setup(GPORT++);
     //printf("lis_sock_1 = %d\n", lis_sock_1);
 
-    printf("Chatroom created on port %s\n", int_to_str(GPORT-1));
+    printf("[MAIN %d]: chatroom created on port %s\n", getpid(), int_to_str(GPORT-1));
     
     int f = fork();
     //printf("fork process = %d\n", f);    
@@ -129,13 +133,13 @@ void handle_main_command(char *s, char **to_client) {
       if (client_socket1 != -1) {
         subserver(client_socket1);
 
-	printf("Chatroom ended!\n");
+	printf("Chatroom on port %s closed!\n", int_to_str(GPORT-1));
       } else {
-	printf("Error: failed to create groupchat!\n");
+	printf("Error: failed to create chatroom!\n");
       }
       
     } else {
-      *to_client = "success";
+      *to_client = "chatroom-success";
     }
 
     

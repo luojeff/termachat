@@ -74,7 +74,11 @@ int main(int argc, char **argv) {
     } else {
       write(current_socket, buffer, sizeof(buffer));
       read(current_socket, buffer, sizeof(buffer));
-      printf("[%s]: [%s]\n", current_group, buffer);
+      
+      if(strcmp(buffer, "chatroom-success") == 0)
+	printf("Chatroom created!\n");
+      else
+	printf("[%s]: [%s]\n", current_group, buffer);
     }
   }
 
