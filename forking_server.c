@@ -19,21 +19,39 @@ static void sighandler(int signo){
   }
 }
 
+void print_error(){
+  printf("Error: %s\n", strerror(errno));
+  exit(0);
+}
+
 
 int main() {
   signal(SIGINT, sighandler);
   signal(SIGUSR1, sighandler);
 
-  int global_listen_socket = server_setup(GPORT++);
-  
-  //printf("global_listen_socket = %d\n", global_listen_socket);
+  printf("GPORT: %d\n", GPORT);
+
+  int global_listen_socket;
+  if((global_listen_socket = server_setup(GPORT++)) != -1){
+    printf("Main server successfully created!\n");
+  } else {
+    print_error();
+    return 0;
+  }  
+  printf("global_listen_socket = %d\n", global_listen_socket);
   
   char main_buffer[BUFFER_SIZE];
-  int global_client_socket = server_connect(global_listen_socket);
+  int global_client_socket;
+
+  if((global_client_socket = server_connect(global_listen_socket)) != -1){
+    printf("Sockets connected!\n");
+  } else {
+    print_error();
+    return 0;
+  }
   //printf("global_client_socket = %d\n", global_client_socket);
   
-  while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {
-    
+  while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {    
     printf("[MAIN %d]: received [%s]\n", getpid(), main_buffer);
 
     // Ends server completely

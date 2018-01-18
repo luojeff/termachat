@@ -17,7 +17,7 @@ void error_check( int i, char *s ) {
 
   returns the socket descriptor
   =========================*/
-int server_setup(int port) {
+int server_setup(int port) {  
   int sd, i;
 
   //create the socket
@@ -76,9 +76,11 @@ int server_connect(int sd) {
   //printf("server_connect %d starting\n", sd);
   int to_client;
   socklen_t sock_size;
-  struct sockaddr_storage client_socket;
+  struct sockaddr_un client_socket;
 
   to_client = accept(sd, (struct sockaddr *)&client_socket, &sock_size);
+  if(to_client == -1)
+    printf("ERROR: %s\n", strerror(errno));
 
   printf("[NETWORK]: new connection with %d\n", to_client);
   
