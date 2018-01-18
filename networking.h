@@ -15,7 +15,7 @@
 #ifndef NETWORKING_H
 #define NETWORKING_H
 
-#define ATTEMPTS 10
+#define ATTEMPTS 50
 #define BUFFER_SIZE 256
 #define PORT 10001
 #define TEST_IP "127.0.0.1"
