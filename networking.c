@@ -75,10 +75,18 @@ int server_setup(int port) {
 int server_connect(int sd) {
   //printf("server_connect %d starting\n", sd);
   int to_client;
-  socklen_t sock_size;
+  socklen_t sock_size = 0;
   struct sockaddr_un client_socket;
 
+  int i;
+
   to_client = accept(sd, (struct sockaddr *)&client_socket, &sock_size);
+
+  printf("SD: %d\n", sd);
+  printf("sock_size: %d\n", (int)sock_size);
+  printf("addr of sockaddr_un: %p\n", &client_socket);
+
+
   if(to_client == -1)
     printf("ERROR: %s\n", strerror(errno));
 
