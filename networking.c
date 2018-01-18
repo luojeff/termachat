@@ -82,11 +82,6 @@ int server_connect(int sd) {
 
   to_client = accept(sd, (struct sockaddr *)&client_socket, &sock_size);
 
-  printf("SD: %d\n", sd);
-  printf("sock_size: %d\n", (int)sock_size);
-  printf("addr of sockaddr_un: %p\n", &client_socket);
-
-
   if(to_client == -1)
     printf("ERROR: %s\n", strerror(errno));
 

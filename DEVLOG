@@ -38,6 +38,10 @@ LESSONS LEARNED
 <yyyy-mm-dd>
 --------------------------------------------------------------
 Gian ::
+
 Jeffrey ::
+2018-01-09 - Added networking template and code to create basic server interaction
+2018-01-15 - Added client signal handling, and ability to create new groupchat, essentially by setting up a new server
+
 Daniel :: 
 ==============================================================

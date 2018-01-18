@@ -1,5 +1,6 @@
 #include "networking.h"
 #include "helper.h"
+#include "parser.h"
 
 void process(char *s);
 void subserver(int from_client);
@@ -29,22 +30,20 @@ int main() {
   signal(SIGINT, sighandler);
   signal(SIGUSR1, sighandler);
 
-  printf("GPORT: %d\n", GPORT);
-
   int global_listen_socket;
   if((global_listen_socket = server_setup(GPORT++)) != -1){
-    printf("Main server successfully created!\n");
+    printf("[MAIN %d]: Main server successfully created!\n", getpid());
   } else {
     print_error();
     return 0;
   }  
-  printf("global_listen_socket = %d\n", global_listen_socket);
+  //printf("global_listen_socket = %d\n", global_listen_socket);
   
   char main_buffer[BUFFER_SIZE];
   int global_client_socket;
 
   if((global_client_socket = server_connect(global_listen_socket)) != -1){
-    printf("Sockets connected!\n");
+    printf("[MAIN %d]: Sockets connected!\n", getpid());
   } else {
     print_error();
     return 0;
@@ -67,14 +66,12 @@ int main() {
   close(global_client_socket);
 }
 
+
 void subserver(int socket) {
   char buffer[BUFFER_SIZE];
-  //  printf("[SUB %d]: Get in\n", getpid());
-
   
   while (read(socket, buffer, sizeof(buffer))) {
     printf("[SUB %d]: received [%s]\n", getpid(), buffer);
-    //process(buffer);
     
     char *to_write;
     handle_groupchat_command(buffer, &to_write);
@@ -85,10 +82,9 @@ void subserver(int socket) {
   exit(0);
 }
 
+
 /* 
-subserver method that handles commands from a client in a groupchat
-
-
+   subserver method that handles commands from a client in a groupchat
 */
 void handle_groupchat_command(char *s, char **to_client){
   if(strcmp(s, "do") == 0) {
@@ -112,6 +108,7 @@ void handle_groupchat_command(char *s, char **to_client){
 }
 
 
+
 /* 
    Handles command provided by string s.
    Sets to_client to a return string, which should be
@@ -122,49 +119,66 @@ void handle_groupchat_command(char *s, char **to_client){
 
 */
 void handle_main_command(char *s, char **to_client) {
-  if(strcmp(s, "list") == 0) {
-    /* List ALL created CHATROOMS */
-    
-    *to_client = "chatroom1: 2 people\nchatroom2: 3 people";
+  char **parsed = parse_input(s, " ");
+
+  int i = count_occur(s, " ")+1;
   
-  } else if(strcmp(s, "join chatroom1") == 0) {    
+  if(i == 1) {
+    /* Single phrase commmands */
     
-    // connect to chat room
-    *to_client = "10002"; // SEND PORT BACK!!!
-    
-  } else if (strcmp(s, "create chatroom2") == 0) {
-    /* Make sure chatroom doesn't already exist! */    
-    
-    // FORK SUBSERVER
-    int lis_sock_1 = server_setup(GPORT++);
-    //printf("lis_sock_1 = %d\n", lis_sock_1);
-
-    printf("[MAIN %d]: chatroom created on port %s\n", getpid(), int_to_str(GPORT-1));
-    
-    int f = fork();
-    //printf("fork process = %d\n", f);    
-    
-    if (f == 0) {
-      int client_socket1 = server_connect(lis_sock_1);
-      //printf("client_socket1 = %d\n", client_socket1);
-      
-      if (client_socket1 != -1) {
-        subserver(client_socket1);
-
-	printf("Chatroom on port %s closed!\n", int_to_str(GPORT-1));
-      } else {
-	printf("Error: failed to create chatroom!\n");
-      }
-      
+    if(strcmp(parsed[0], "@list") == 0) {
+      *to_client = "chatroom1: 2 people\nchatroom2: 3 people";
+    } else if(strcmp(parsed[0], "@help") == 0){
+      *to_client = "Under development...";
     } else {
-      *to_client = "chatroom-success";
+      *to_client = "Invalid command. Type @help for help";
     }
 
+
     
-  } else {
-    *to_client = "invalid command";
-  }  
+  } else if (i == 2) {    
+    /* Double phrase commands */
+
+    if(strcmp(parsed[0], "@join") == 0) {
+    
+      *to_client = "10002"; // MUST SEND PORT BACK!!!    
+    } else if (strcmp(parsed[0], "@create") == 0) {
+      /* Make sure chatroom doesn't already exist! */    
+    
+      // FORK SUBSERVER
+      int lis_sock_1 = server_setup(GPORT++);
+      //printf("lis_sock_1 = %d\n", lis_sock_1);
+
+      printf("[MAIN %d]: chatroom created on port %s\n", getpid(), int_to_str(GPORT-1));
+    
+      int f = fork();
+      //printf("fork process = %d\n", f);    
+    
+      if (f == 0) {
+	int client_socket1 = server_connect(lis_sock_1);
+	//printf("client_socket1 = %d\n", client_socket1);
+      
+	if (client_socket1 != -1) {
+	  subserver(client_socket1);
+
+	  printf("[MAIN %d]: Chatroom on port %s closed!\n", getpid(), int_to_str(GPORT-1));
+	} else {
+	  printf("[MAIN %d]: Failed to create chatroom!\n", getpid());
+	}
+      
+      } else {
+	*to_client = "chatroom-success";
+      }
+    } else {
+      *to_client = "Invalid command. Type @help for help";
+    }
+	     
+  }
+
+  free(parsed);
 }
+
+
 
 /*
   void process(char * s) {

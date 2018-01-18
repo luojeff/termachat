@@ -1,5 +1,5 @@
 CC = gcc
-HEADERS = networking.h helper.h
+HEADERS = networking.h helper.h parser.h
 
 SERV_OBJS = forking_server.o parser.o helper.o networking.o
 CLIENT_OBJS = client.o helper.o networking.o
@@ -26,7 +26,7 @@ networking.o: networking.c $(HEADERS)
 helper.o: helper.c helper.h
 	@$(CC) -c $<
 
-parser.o: parser.c
+parser.o: parser.c parser.h
 	@$(CC) -c $<
 
 clean:
