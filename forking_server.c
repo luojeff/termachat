@@ -12,7 +12,7 @@ int GPORT = PORT;
 static void sighandler(int signo){
   switch(signo) {
   case SIGINT:
-    printf("Process ended due to SIGINT\n");
+    printf("\nProcess ended due to SIGINT\n");
     exit(0);
   case SIGUSR1:
     printf("Parent PID: %d\n", getppid());
@@ -37,19 +37,30 @@ int main() {
     print_error();
     return 0;
   }  
-  //printf("global_listen_socket = %d\n", global_listen_socket);
+  printf("global_listen_socket = %d\n", global_listen_socket);
   
   char main_buffer[BUFFER_SIZE];
   int global_client_socket;
 
-  if((global_client_socket = server_connect(global_listen_socket)) != -1){
-    printf("[MAIN %d]: Sockets connected!\n", getpid());
-  } else {
-    print_error();
-    return 0;
+  while(1){
+    if((global_client_socket = server_connect(global_listen_socket)) != -1){
+      printf("[MAIN %d]: Sockets connected!\n", getpid());
+    } else {
+      print_error();
+      return 0;
+    }
+    printf("global_client_socket = %d\n", global_client_socket);
+    
+    //fork off new server to talk to client
+    int f = 0;
+    f = fork();
+    
+    if(f == 0){
+      subserver(global_client_socket);
+      exit(0);
+    }
   }
-  //printf("global_client_socket = %d\n", global_client_socket);
-  
+  /*
   while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {    
     printf("[MAIN %d]: received [%s]\n", getpid(), main_buffer);
 
@@ -64,6 +75,7 @@ int main() {
   }
   
   close(global_client_socket);
+  */
 }
 
 
