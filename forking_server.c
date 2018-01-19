@@ -3,6 +3,8 @@
 #include "parser.h"
 
 void process(char *s);
+void listening_server(int global_listen_socket, int to_main_server[2]);
+void main_server(int to_main_server[2]);
 void subserver(int from_client);
 void handle_groupchat_command(char *, char **);
 void handle_main_command(char *, char **);
@@ -38,28 +40,20 @@ int main() {
     return 0;
   }  
   printf("global_listen_socket = %d\n", global_listen_socket);
-  
-  char main_buffer[BUFFER_SIZE];
-  int global_client_socket;
 
-  while(1){
-    if((global_client_socket = server_connect(global_listen_socket)) != -1){
-      printf("[MAIN %d]: Sockets connected!\n", getpid());
-    } else {
-      print_error();
-      return 0;
-    }
-    printf("global_client_socket = %d\n", global_client_socket);
-    
-    //fork off new server to talk to client
-    int f = 0;
-    f = fork();
-    
-    if(f == 0){
-      subserver(global_client_socket);
-      exit(0);
-    }
+  int pipe_to_main[2];
+  pipe2(pipe_to_main, O_NONBLOCK);
+
+  int f = 0;
+  f = fork();
+
+  if(f == 0){
+    mainserver(pipe_to_main);
+    exit(0);
   }
+  
+  listening_server(global_listen_socket, pipe_to_main);
+  
   /*
   while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {    
     printf("[MAIN %d]: received [%s]\n", getpid(), main_buffer);
@@ -78,6 +72,42 @@ int main() {
   */
 }
 
+void listening_server(int global_listen_socket, int pipe_to_main[2]){
+  int global_client_socket;
+
+  close(pipe_to_main[0]);
+  while(1){
+    if((global_client_socket = server_connect(global_listen_socket)) != -1){
+      printf("[MAIN %d]: Sockets connected!\n", getpid());
+    } else {
+      print_error();
+      exit(0);
+    }
+    printf("global_client_socket = %d\n", global_client_socket);
+    write(pipe_to_main[1], &global_client_socket, sizeof(int));
+  }
+}
+
+void mainserver(int pipe_to_main[2]){
+  close(pipe_to_main[1]);
+
+  while(1){
+    int global_client_socket;
+    int r = 0;
+    r = read(pipe_to_main[0], &global_client_socket, 4);
+    //fork off new server to talk to client
+    int f = 0;
+    if(r != 0){
+      f = fork();
+
+      
+      if(f == 0){
+	subserver(global_client_socket);
+      exit(0);
+      }
+    }
+  }
+}
 
 void subserver(int socket) {
   char buffer[BUFFER_SIZE];
