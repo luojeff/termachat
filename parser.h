@@ -4,4 +4,5 @@ char **parse_input(char *, char *);
 char *trim_string(char *, int);
 int count_occur(char *, char *);
 char *trim_trailing(char *, char);
+int get_num_phrases(char *, char);
 #endif

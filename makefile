@@ -2,7 +2,7 @@ CC = gcc
 HEADERS = networking.h helper.h parser.h
 
 SERV_OBJS = forking_server.o parser.o helper.o networking.o
-CLIENT_OBJS = client.o helper.o networking.o
+CLIENT_OBJS = client.o helper.o networking.o parser.o
 SERVER = server
 CLIENT = client
 

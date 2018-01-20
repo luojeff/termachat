@@ -1,5 +1,6 @@
 #include "networking.h"
 #include "helper.h"
+#include "parser.h"
 
 static void client_sighandler(int signo){
   switch(signo) {
@@ -49,28 +50,88 @@ int main(int argc, char **argv) {
 
   current_socket = server_socket;
 
+  char **client_parsed, **args;
+
   while (1) {
     printf("[YOU @ %s]: ", current_group);
     fgets(buffer, sizeof(buffer), stdin);
     *strchr(buffer, '\n') = 0;
 
-    if(strcmp(buffer, "join chatroom1") == 0) {
-      write(current_socket, buffer, sizeof(buffer));
+    //char **client_parsed = parse_input(buffer, " ");
+
+    //printf("First arg passed: [%s]\n", client_parsed[0]);
+
+    write(current_socket, buffer, sizeof(buffer));
+    read(current_socket, buffer, sizeof(buffer));
+
+ 
+    if(count_occur(buffer, "#") != 2){
+      printf("Received invalid response by server! Check server code!\n");      
+      exit(0);
+    }
+
+    client_parsed = parse_input(buffer, "#");
+    args = parse_input(client_parsed[1], "|");
+    
+    /*
+    int i=0;
+    while(args[i]){
+      printf("args[%d]=%s\n", i, args[i]);
+      i++;
+    }
+    */
+
+    char type = args[0][0];
+    if(type == 'c'){
+      char *command = args[1];
+
+      /* Typical commands */
+      if(strcmp("display-invalid", command) == 0){
+	printf("Invalid command! Type @help for help.\n");
+      } else if (strcmp("display-help", command) == 0){
+	printf("Supported commands:\n@help\n@create\n@join\n@end\n");
+      } else {
+	printf("TEST 1\n");
+      }
+    } else if (type == 't'){
+      char *sender = args[1];
+      char *text = args[2];
+
+      /* Text */
+      printf("[%s]: [%s]\n", sender, text);
+    } else if (type == 'o'){
+      char *next = args[1];
+
+      /* Other */
+      //printf("Received *OTHER* response from server!\n");
+      if(strcmp("chatroom-success", next) == 0){
+	printf("Chatroom successfully created!\n");
+      }
+    } else {
+      /* Invalid response from server! */
+    }
+
+
+
+    /*
+    if(strcmp(client_parsed[0], "@join") == 0) {
+      strcat(contents, parsed[1]);
+      write(current_socket, contents, sizeof(contents));
       read(current_socket, buffer, sizeof(buffer));
       printf("Joining chatroom %s:%s\n", ip_addr, buffer);
 
-      /* Gets next additional port */
-      int server_sock_1;
-      if((server_sock_1 = client_setup( ip_addr, buffer)) != -1)
+      /* Gets next additional port */ /*
+      int server_sock;
+      if((server_sock = client_setup( ip_addr, buffer)) != -1)
 	printf("Connected to chatroom %s:%s!\n", ip_addr, buffer);
       else
 	printf("Error: failed to connect!\n");
       
-      //printf("SERVER_SOCK_1: %d\n", server_sock_1);
+      //printf("SERVER_SOCK: %d\n", server_sock);
 
       strcpy(current_group, "CR-");
       strncat(current_group, buffer, MAX_GROUP_NAME_SIZE);
-      current_socket = server_sock_1;
+      current_socket = server_sock;
     } else {
       write(current_socket, buffer, sizeof(buffer));
       read(current_socket, buffer, sizeof(buffer));
@@ -79,8 +140,9 @@ int main(int argc, char **argv) {
 	printf("Chatroom created!\n");
       else
 	printf("[%s]: [%s]\n", current_group, buffer);
-    }
+    } */
   }
 
-  
+  free(client_parsed);
+  free(args);    
 }

@@ -2,8 +2,8 @@
 #include "helper.h"
 #include "parser.h"
 
-void process(char *s);
-void subserver(int from_client);
+void process(char *);
+void subserver(int, char *);
 void handle_groupchat_command(char *, char **);
 void handle_main_command(char *, char **);
 
@@ -40,7 +40,7 @@ int main() {
   //printf("global_listen_socket = %d\n", global_listen_socket);
   
   char main_buffer[BUFFER_SIZE];
-  int global_client_socket;
+  int global_client_socket, gcs2;
 
   if((global_client_socket = server_connect(global_listen_socket)) != -1){
     printf("[MAIN %d]: Sockets connected!\n", getpid());
@@ -48,15 +48,23 @@ int main() {
     print_error();
     return 0;
   }
+
+  /*
+  if((gcs2 = server_connect(global_listen_socket)) != -1){
+    printf("[MAIN %d]: Sockets connected!\n", getpid());
+  } else {
+    print_error();
+    return 0;
+  }
+  */
+
+  
   //printf("global_client_socket = %d\n", global_client_socket);
   
   while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {    
     printf("[MAIN %d]: received [%s]\n", getpid(), main_buffer);
 
-    // Ends server completely
-    if (!strcmp(main_buffer, "end")) {
-      break;
-    }
+    
       
     char *to_write;
     handle_main_command(main_buffer, &to_write);
@@ -67,14 +75,14 @@ int main() {
 }
 
 
-void subserver(int socket) {
+void subprocess(int socket, char *group_name) {
   char buffer[BUFFER_SIZE];
   
   while (read(socket, buffer, sizeof(buffer))) {
-    printf("[SUB %d]: received [%s]\n", getpid(), buffer);
+    printf("[SUB %d for %s]: received [%s]\n", getpid(), buffer, group_name);
     
     char *to_write;
-    handle_groupchat_command(buffer, &to_write);
+    handle_main_command(buffer, &to_write);
     write(socket, to_write, sizeof(buffer));
   }
   
@@ -86,6 +94,7 @@ void subserver(int socket) {
 /* 
    subserver method that handles commands from a client in a groupchat
 */
+/*
 void handle_groupchat_command(char *s, char **to_client){
   if(strcmp(s, "do") == 0) {
     
@@ -99,6 +108,7 @@ void handle_groupchat_command(char *s, char **to_client){
   } else if (strcmp(s, "members") == 0) {
     
     /* List ALL created SUBGROUPS */
+/*
     *to_client = "success";
     
   } else {
@@ -106,6 +116,7 @@ void handle_groupchat_command(char *s, char **to_client){
     *to_client = "invalid command";
   }
 }
+*/
 
 
 
@@ -119,47 +130,75 @@ void handle_groupchat_command(char *s, char **to_client){
 
 */
 void handle_main_command(char *s, char **to_client) {
+  int num_phrases = get_num_phrases(s, ' '); // don't move this line
   char **parsed = parse_input(s, " ");
 
-  int i = count_occur(s, " ")+1;
+  printf("Num phrases: %d\n", num_phrases);
+
+  /* IMPORTANT 
+
+     THREE TYPES OF "DATA" TO BE SENT BACK TO CLIENT
+
+     Prefixed by: 
+     #c : Command (Handled case by case on client)
+     #t : Text
+     #o : Other (Handled case by case on client)
+
+
+     COMMAND FORMAT: #c|COMMAND|ADDITIONAL INFO#
+     - - - - - - - - - - - - - - - - - -
+     #c|join|10002
+     #c|do stuff
+
+
+     TEXT FORMAT: #t|SENDER|TEXT#
+     - - - - - - - - - - - - - - - - - - 
+     #t|joeuser|this is a public message#
+     #t|bobuser|this is a private message!#
+
+     OTHER FORMAT:
+     Whatever you want...
+   */
   
-  if(i == 1) {
-    /* Single phrase commmands */
+  if(num_phrases == 1) {
     
+    /* Single phrase commmands */    
     if(strcmp(parsed[0], "@list") == 0) {
-      *to_client = "chatroom1: 2 people\nchatroom2: 3 people";
+      *to_client = "#t|SERVER|chatroom1: 2 people\nchatroom2: 3 people#";
     } else if(strcmp(parsed[0], "@help") == 0){
-      *to_client = "Under development...";
+      *to_client = "#c|display-help#";
+    } else if (!strcmp(parsed[0], "@end")) {
+      exit(0);
     } else {
-      *to_client = "Invalid command. Type @help for help";
+      *to_client = "#c|display-invalid#";
     }
-
-
     
-  } else if (i == 2) {    
+  } else if (num_phrases == 2) {
+    
     /* Double phrase commands */
-
     if(strcmp(parsed[0], "@join") == 0) {
     
-      *to_client = "10002"; // MUST SEND PORT BACK!!!    
+      *to_client = "10002"; // MUST SEND PORT BACK!!!
     } else if (strcmp(parsed[0], "@create") == 0) {
       /* Make sure chatroom doesn't already exist! */    
     
-      // FORK SUBSERVER
-      int lis_sock_1 = server_setup(GPORT++);
-      //printf("lis_sock_1 = %d\n", lis_sock_1);
+      char *cr_name = parsed[1];
 
-      printf("[MAIN %d]: chatroom created on port %s\n", getpid(), int_to_str(GPORT-1));
+      // FORK SUBSERVER
+      int lis_sock = server_setup(GPORT++);
+      //printf("lis_sock = %d\n", lis_sock);
+
+      printf("[MAIN %d]: chatroom %s created on port %s\n", getpid(), cr_name, int_to_str(GPORT-1));
     
       int f = fork();
       //printf("fork process = %d\n", f);    
     
       if (f == 0) {
-	int client_socket1 = server_connect(lis_sock_1);
-	//printf("client_socket1 = %d\n", client_socket1);
+	int client_sock = server_connect(lis_sock);
+	//printf("client_sock = %d\n", client_sock);
       
-	if (client_socket1 != -1) {
-	  subserver(client_socket1);
+	if (client_sock != -1) {
+	  subprocess(client_sock, cr_name);
 
 	  printf("[MAIN %d]: Chatroom on port %s closed!\n", getpid(), int_to_str(GPORT-1));
 	} else {
@@ -167,18 +206,16 @@ void handle_main_command(char *s, char **to_client) {
 	}
       
       } else {
-	*to_client = "chatroom-success";
+	*to_client = "#o|chatroom-success#";
       }
     } else {
-      *to_client = "Invalid command. Type @help for help";
+      *to_client = "#c|display-invalid#";
     }
 	     
   }
 
   free(parsed);
 }
-
-
 
 /*
   void process(char * s) {
