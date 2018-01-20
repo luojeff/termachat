@@ -2,23 +2,26 @@
 #include "helper.h"
 #include "parser.h"
 
-void process(char *);
-void subserver(int, char *);
-void handle_groupchat_command(char *, char **);
-void handle_main_command(char *, char **);
 
+void subprocess(int, char *);
+void listening_server(int, int[2]);
+void mainserver(int[2]);
+void handle_main_command(char *, char **);
+//void handle_groupchat_command(char *, char **);
 int GPORT = PORT;
+
 
 static void sighandler(int signo){
   switch(signo) {
   case SIGINT:
-    printf("Process ended due to SIGINT\n");
+    printf("\nProcess ended due to SIGINT\n");
     exit(0);
   case SIGUSR1:
     printf("Parent PID: %d\n", getppid());
     break;
   }
 }
+
 
 void print_error(){
   printf("Error: %s\n", strerror(errno));
@@ -37,43 +40,76 @@ int main() {
     print_error();
     return 0;
   }  
-  //printf("global_listen_socket = %d\n", global_listen_socket);
-  
-  char main_buffer[BUFFER_SIZE];
-  int global_client_socket, gcs2;
-
-  if((global_client_socket = server_connect(global_listen_socket)) != -1){
-    printf("[MAIN %d]: Sockets connected!\n", getpid());
-  } else {
-    print_error();
-    return 0;
-  }
 
   /*
-  if((gcs2 = server_connect(global_listen_socket)) != -1){
-    printf("[MAIN %d]: Sockets connected!\n", getpid());
-  } else {
-    print_error();
-    return 0;
-  }
+  printf("global_listen_socket = %d\n", global_listen_socket);  
+  char main_buffer[BUFFER_SIZE];
+  int global_client_socket, gcs2;
+  printf("global_listen_socket = %d\n", global_listen_socket);
   */
 
-  
-  //printf("global_client_socket = %d\n", global_client_socket);
-  
-  while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {    
-    printf("[MAIN %d]: received [%s]\n", getpid(), main_buffer);
+  int pipe_to_main[2];
+  pipe2(pipe_to_main, O_NONBLOCK);
 
-    
-      
+  int f = 0;
+  f = fork();
+
+  if(f == 0){
+    mainserver(pipe_to_main);
+    exit(0);
+  }
+  
+  listening_server(global_listen_socket, pipe_to_main);
+  
+  /*
+  while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {    
+    printf("[MAIN %d]: received [%s]\n", getpid(), main_buffer);      
     char *to_write;
     handle_main_command(main_buffer, &to_write);
     write(global_client_socket, to_write, sizeof(main_buffer));
-  }
-  
+  }  
   close(global_client_socket);
+  */
 }
 
+void listening_server(int global_listen_socket, int pipe_to_main[2]){
+  int global_client_socket;
+
+  close(pipe_to_main[0]);
+  while(1){
+    if((global_client_socket = server_connect(global_listen_socket)) != -1){
+      printf("[MAIN %d]: Sockets connected!\n", getpid());
+    } else {
+      print_error();
+      exit(0);
+    }
+    printf("global_client_socket = %d\n", global_client_socket);
+    write(pipe_to_main[1], &global_client_socket, sizeof(int));
+  }
+}
+
+void mainserver(int pipe_to_main[2]){
+  close(pipe_to_main[1]);
+
+  while(1){
+    int global_client_socket;
+    int r = 0;
+    r = read(pipe_to_main[0], &global_client_socket, 4);
+
+    // Fork off subprocess to talk to client
+    int f = 0;
+    if(r != 0){
+      f = fork();
+      
+      if(f == 0){
+	subprocess(global_client_socket, "test");
+	exit(0);
+      } else {
+	// else 
+      }
+    }
+  }
+}
 
 void subprocess(int socket, char *group_name) {
   char buffer[BUFFER_SIZE];
