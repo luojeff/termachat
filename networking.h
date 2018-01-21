@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <sys/sem.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -21,6 +22,11 @@
 #define BUFFER_SIZE 256
 #define PORT 10001 // default port attempts start at
 #define TEST_IP "127.0.0.1"
+
+/* Chatroom limitations */
+#define MAX_NUM_MEMBERS 16
+#define MAX_NUM_CHATROOMS 16
+
 #define READ 0
 #define WRITE 1
 

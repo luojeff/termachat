@@ -108,6 +108,8 @@ int main(int argc, char **argv) {
 	printf("Chatroom does not exist!\n");
       } else if(strcmp("chatroom-nametaken", next) == 0){
 	printf("Chatroom w/ input name already exists!\n");
+      } else if(strcmp("requesting", next) == 0){
+	printf("Requesting from server...\n");
       }
     } else {
       /* Invalid response from server! */
