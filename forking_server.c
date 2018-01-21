@@ -3,9 +3,11 @@
 #include "helper.h"
 #include "parser.h"
 
+
 #define MAX_NUM_MEMBERS 16
 
-void subprocess(int, char *);
+
+void subprocess(int, char *, char*);
 void listening_server(int, int[2]);
 void mainserver(int[2]);
 void handle_main_command(char *, char (*)[]);
@@ -13,6 +15,22 @@ void handle_main_command(char *, char (*)[]);
 int GPORT = PORT;
 
 
+/* KEPT FOR TESTING PURPOSES */
+void _subprocess(int socket, char *group_name) {
+  char buffer[BUFFER_SIZE];
+  while ((read(socket, buffer, sizeof(buffer)) > 0)) {
+    printf("[SUB %d for %s]: received [%s]\n", getpid(), group_name, buffer);
+    
+    char write_to_client[BUFFER_SIZE];
+    handle_main_command(buffer, &write_to_client);
+    write(socket, write_to_client, sizeof(buffer)); // SIZEOF(BUFFER) ??????
+  }
+  
+  close(socket);
+  exit(0);
+}
+
+/* Storing information about chatrooms */
 struct chatroom {
   char *name;  
   int num_members;
@@ -53,12 +71,10 @@ int main() {
   } else {
     print_error();
   }
-
-  printf("global_listen_socket: %d\n", global_listen_socket);
   
   int pipe_to_main[2];
   pipe2(pipe_to_main, O_NONBLOCK);
-
+  
   int f = fork();
 
   if(f == 0){
@@ -94,14 +110,29 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
 
   close(pipe_to_main[0]);
   while(1){
-    if((global_client_socket = server_connect(global_listen_socket)) != -1){
+    if((global_client_socket = server_connect(3)) != -1){
       printf("[MAIN %d]: Sockets connected!\n", getpid());
     } else {
       print_error();
       exit(0);
     }
     
-    write(pipe_to_main[1], &global_client_socket, sizeof(int));
+    //creating a FIFO to allow interprocess communication
+    char fifo_name[20];
+    sprintf(fifo_name, "./FIFO%d\0", global_client_socket);
+    printf("about to create fifo\n");
+    mkfifo(fifo_name, 0666);
+    printf("fifo created\n");
+    //fork off new process to talk to client and have it connect to the new FIFO
+    if(fork() == 0) {	
+      printf("subproess forked off\n");
+      subprocess(global_client_socket, "test", fifo_name);
+      exit(0);
+    } else {
+      // else 
+    }
+    
+    write(pipe_to_main[WRITE], fifo_name, 20);
   }
 }
 
@@ -111,26 +142,27 @@ void mainserver(int pipe_to_main[2]){
   close(pipe_to_main[1]);
 
   while(1){
-    int global_client_socket;
-    int r = read(pipe_to_main[0], &global_client_socket, 4);
+    char fifo_name[20];
 
-    // Fork off subprocess to talk to client
+    int r = 0;
+    r = read(pipe_to_main[READ], fifo_name, 20);
+    
+    //handle new client setup stuff
     if(r > 0){
-      
-      if(fork() == 0) {	
-	subprocess(global_client_socket, "test");
-	exit(0);
-      } else {
-	// else 
-      }
+      printf("[Main %d] attempting to connect to fifo %s\n", getpid(), fifo_name);
+      open(fifo_name, O_RDWR);
     }
   }
 }
 
 
-void subprocess(int socket, char *group_name) {
+void subprocess(int socket, char *group_name, char* fifo_name) {
   char buffer[BUFFER_SIZE];
+
+  printf("[sub %d] attempting to connect to fifo %s\n", getpid(), fifo_name);
+  open(fifo_name, O_RDWR);
   
+
   while ((read(socket, buffer, sizeof(buffer)) > 0)) {
     printf("[SUB %d for %s]: received [%s]\n", getpid(), group_name, buffer);
     
@@ -252,6 +284,7 @@ void handle_main_command(char *s, char (*to_client)[]) {
       }
       
     } else if (strcmp(parsed[0], "@create") == 0) {
+
       
       /* Make sure chatroom doesn't already exist! */
       cr_name = parsed[1];
@@ -267,43 +300,40 @@ void handle_main_command(char *s, char (*to_client)[]) {
 	strcpy(*to_client, "#o|chatroom-nametaken#");
       else {    
 	char *cr_name = parsed[1];
-
-	struct chatroom chatrm;
-	chatrm.name = cr_name;
-      
-	existing_chatrooms[chatrooms_index] = chatrm;
-	chatrooms_index++;
-      
-
-	// FORK SUBSERVER
 	int lis_sock = server_setup(GPORT++);
-	//printf("lis_sock = %d\n", lis_sock);
+	printf("lis_sock = %d\n", lis_sock);
+	
 
 	printf("[MAIN %d]: chatroom %s created on port %s\n", getpid(), cr_name, int_to_str(GPORT-1));
-    
+	
+
+	struct chatroom chatrm;
+	chatrm.name = cr_name;      
+	existing_chatrooms[chatrooms_index] = chatrm;
+	chatrooms_index++;
+	
+
+	/* Find a way to redo this code */
 	int f = fork();
-	//printf("fork process = %d\n", f);    
     
 	if (f == 0) {
 	  int client_sock = server_connect(lis_sock);
-	  //printf("client_sock = %d\n", client_sock);
+	  printf("client_sock = %d\n", client_sock);
       
 	  if (client_sock != -1) {
-	    subprocess(client_sock, cr_name);
+	    _subprocess(client_sock, cr_name);
 
 	    printf("[MAIN %d]: Chatroom on port %s closed!\n", getpid(), int_to_str(GPORT-1));
 	  } else {
 	    printf("[MAIN %d]: Failed to create chatroom!\n", getpid());
-	  }
-	
-	} else {
+	  }	
+	}  else {	  
 	  strcpy(*to_client, "#o|chatroom-success#");
 	}
       }
 
       
     } else {
-
       /* Arguments from client make no sense */
       strcpy(*to_client, "#c|display-invalid#");
     }

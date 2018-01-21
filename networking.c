@@ -80,8 +80,9 @@ int server_connect(int sd) {
 
   int i;
 
+  printf("about to accept connection\n");
   to_client = accept(sd, (struct sockaddr *)&client_socket, &sock_size);
-
+  printf("connection accepted\n");
   if(to_client == -1)
     printf("ERROR: %s\n", strerror(errno));
 
