@@ -21,6 +21,8 @@
 #define BUFFER_SIZE 256
 #define PORT 10001 // default port attempts start at
 #define TEST_IP "127.0.0.1"
+#define READ 0
+#define WRITE 1
 
 void error_check(int, char *);
 int server_setup(int);

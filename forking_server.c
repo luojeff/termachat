@@ -3,7 +3,7 @@
 #include "helper.h"
 #include "parser.h"
 
-void subprocess(int, char *);
+void subprocess(int, char *, char*);
 void listening_server(int, int[2]);
 void mainserver(int[2]);
 void handle_main_command(char *, char **);
@@ -39,12 +39,10 @@ int main() {
   } else {
     print_error();
   }
-
-  printf("global_listen_socket: %d\n", global_listen_socket);
   
   int pipe_to_main[2];
   pipe2(pipe_to_main, O_NONBLOCK);
-
+  
   int f = fork();
 
   if(f == 0){
@@ -80,14 +78,29 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
 
   close(pipe_to_main[0]);
   while(1){
-    if((global_client_socket = server_connect(global_listen_socket)) != -1){
+    if((global_client_socket = server_connect(3)) != -1){
       printf("[MAIN %d]: Sockets connected!\n", getpid());
     } else {
       print_error();
       exit(0);
     }
     
-    write(pipe_to_main[1], &global_client_socket, sizeof(int));
+    //creating a FIFO to allow interprocess communication
+    char fifo_name[20];
+    sprintf(fifo_name, "./FIFO%d\0", global_client_socket);
+    printf("about to create fifo\n");
+    mkfifo(fifo_name, 0666);
+    printf("fifo created\n");
+    //fork off new process to talk to client and have it connect to the new FIFO
+    if(fork() == 0) {	
+      printf("subproess forked off\n");
+      subprocess(global_client_socket, "test", fifo_name);
+      exit(0);
+    } else {
+      // else 
+    }
+    
+    write(pipe_to_main[WRITE], fifo_name, 20);
   }
 }
 
@@ -97,27 +110,27 @@ void mainserver(int pipe_to_main[2]){
   close(pipe_to_main[1]);
 
   while(1){
-    int global_client_socket;
-    int r = read(pipe_to_main[0], &global_client_socket, 4);
+    char fifo_name[20];
 
-    // Fork off subprocess to talk to client
+    int r = 0;
+    r = read(pipe_to_main[READ], fifo_name, 20);
+    
+    //handle new client setup stuff
     if(r > 0){
-      
-      if(fork() == 0) {	
-	subprocess(global_client_socket, "test");
-	exit(0);
-      } else {
-	// else 
-      }
+      printf("[Main %d] attempting to connect to fifo %s\n", getpid(), fifo_name);
+      open(fifo_name, O_RDWR);
     }
   }
 }
 
 
-void subprocess(int socket, char *group_name) {
+void subprocess(int socket, char *group_name, char* fifo_name) {
   char buffer[BUFFER_SIZE];
+
+  printf("[sub %d] attempting to connect to fifo %s\n", getpid(), fifo_name);
+  open(fifo_name, O_RDWR);
   
-  while (read(socket, buffer, sizeof(buffer))) {
+  while (read(socket, buffer, sizeof(buffer)) > 0) {
     printf("[SUB %d for %s]: received [%s]\n", getpid(), group_name, buffer);
     
     char *write_to_client;
@@ -222,7 +235,7 @@ void handle_main_command(char *s, char **to_client) {
       /* Make sure chatroom doesn't already exist! */    
     
       char *cr_name = parsed[1];
-
+      /*
       // FORK SUBSERVER
       int lis_sock = server_setup(GPORT++);
       //printf("lis_sock = %d\n", lis_sock);
@@ -246,7 +259,7 @@ void handle_main_command(char *s, char **to_client) {
       
       } else {
 	*to_client = "#o|chatroom-success#";
-      }
+	}*/
     } else {
       *to_client = "#c|display-invalid#";
     }
