@@ -5,24 +5,26 @@
 
 
 #define MAX_NUM_MEMBERS 16
+#define MAX_NUM_CHATROOMS 16
 
 
 void subprocess(int, char *, char*);
 void listening_server(int, int[2]);
 void mainserver(int[2]);
-void handle_main_command(char *, char (*)[]);
+int handle_main_command(char *, char (*)[], char (*)[]);
 //void handle_groupchat_command(char *, char **);
 int GPORT = PORT;
 
 
 /* KEPT FOR TESTING PURPOSES */
-void _subprocess(int socket, char *group_name) {
+void _subprocess(int socket, char *group_name) {  
   char buffer[BUFFER_SIZE];
   while ((read(socket, buffer, sizeof(buffer)) > 0)) {
     printf("[SUB %d for %s]: received [%s]\n", getpid(), group_name, buffer);
+    printf("Warning: this subprocess won't write to FIFOs!\n");
     
     char write_to_client[BUFFER_SIZE];
-    handle_main_command(buffer, &write_to_client);
+    handle_main_command(buffer, 0, &write_to_client);
     write(socket, write_to_client, sizeof(buffer)); // SIZEOF(BUFFER) ??????
   }
   
@@ -32,15 +34,17 @@ void _subprocess(int socket, char *group_name) {
 
 /* Storing information about chatrooms */
 struct chatroom {
-  char *name;  
+  char *name;
   int num_members;
   int port;
   int server_sd;
+  char *fifo_to_main;
+  
   char *members[MAX_NUM_MEMBERS];
 };
 
-int chatrooms_index = 0;
-struct chatroom existing_chatrooms[32];
+int chatrooms_added = 0;
+struct chatroom existing_chatrooms[MAX_NUM_CHATROOMS];
 
 
 static void sighandler(int signo){
@@ -78,12 +82,12 @@ int main() {
   int f = fork();
 
   if(f == 0){
-    sleep(1);
+    //sleep(1);
 
     /* Child */
     mainserver(pipe_to_main);
     exit(0);
-  } else {  
+  } else {
     listening_server(global_listen_socket, pipe_to_main);
   }
   
@@ -110,7 +114,7 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
 
   close(pipe_to_main[0]);
   while(1){
-    if((global_client_socket = server_connect(3)) != -1){
+    if((global_client_socket = server_connect(global_listen_socket)) != -1){
       printf("[MAIN %d]: Sockets connected!\n", getpid());
     } else {
       print_error();
@@ -120,16 +124,15 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
     //creating a FIFO to allow interprocess communication
     char fifo_name[20];
     sprintf(fifo_name, "./FIFO%d\0", global_client_socket);
-    printf("about to create fifo\n");
+    printf("[MAIN]: Creating fifo [%s]\n", fifo_name);
     mkfifo(fifo_name, 0666);
-    printf("fifo created\n");
+    printf("[MAIN]: Fifo created!\n");
+    
     //fork off new process to talk to client and have it connect to the new FIFO
     if(fork() == 0) {	
-      printf("subproess forked off\n");
-      subprocess(global_client_socket, "test", fifo_name);
+      printf("Subprocess forked off\n");
+      subprocess(global_client_socket, "pub-test", fifo_name);
       exit(0);
-    } else {
-      // else 
     }
     
     write(pipe_to_main[WRITE], fifo_name, 20);
@@ -137,21 +140,31 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
 }
 
 
-/* Forks off subprocess to deal w/ client */
+
 void mainserver(int pipe_to_main[2]){
   close(pipe_to_main[1]);
 
   while(1){
     char fifo_name[20];
 
-    int r = 0;
-    r = read(pipe_to_main[READ], fifo_name, 20);
+    int fd; // temporary, not saved anywhere !!!
+    int r = read(pipe_to_main[READ], fifo_name, 20);
+
+    printf("[MAIN %d]: Received fifo [%s]\n", fifo_name);
     
     //handle new client setup stuff
-    if(r > 0){
-      printf("[Main %d] attempting to connect to fifo %s\n", getpid(), fifo_name);
-      open(fifo_name, O_RDWR);
+    if(r > 0){      
+      if((fd = open(fifo_name, O_RDWR)) > 0)
+	printf("[MAIN %d]: Connected to fifo [%s]\n", getpid(), fifo_name);
+      else
+	printf("[MAIN %d]: Failed to connect to fifo [%s]\n", getpid(), fifo_name);
     }
+
+    /* //ONLY FOR TESTING, this shouldn't really work
+    char from_subprocess[BUFFER_SIZE];
+    read(fd, from_subprocess, sizeof(from_subprocess));
+    write(fd, "something", 10);
+    */
   }
 }
 
@@ -159,16 +172,26 @@ void mainserver(int pipe_to_main[2]){
 void subprocess(int socket, char *group_name, char* fifo_name) {
   char buffer[BUFFER_SIZE];
 
-  printf("[sub %d] attempting to connect to fifo %s\n", getpid(), fifo_name);
-  open(fifo_name, O_RDWR);
+  int fd;
   
+  if((fd = open(fifo_name, O_RDWR)) > 0)
+    printf("[SUB %d for %s]: Connected to fifo [%s]\n", getpid(), group_name, fifo_name);
 
   while ((read(socket, buffer, sizeof(buffer)) > 0)) {
     printf("[SUB %d for %s]: received [%s]\n", getpid(), group_name, buffer);
     
     char write_to_client[BUFFER_SIZE];
-    handle_main_command(buffer, &write_to_client);
-    write(socket, write_to_client, sizeof(buffer)); // SIZEOF(BUFFER) ??????
+    char write_to_fifo[BUFFER_SIZE];
+    int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo);
+    write(socket, write_to_client, BUFFER_SIZE);
+    
+    /* Handle writing to mainserver and receiving response */
+    if(resp > 0) {
+      write(fd, write_to_fifo, BUFFER_SIZE);
+      read(fd, write_to_fifo, BUFFER_SIZE);
+
+      printf("[SUB %d for %s]: received from MAIN [%s]\n", getpid(), group_name, write_to_fifo);
+    }
   }
   
   close(socket);
@@ -206,23 +229,23 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
 
 
 /* 
-   Handles command provided by string s.
-   Sets to_client to a return string, which should be
-   sent back to the client 
+   s: string with command arguments that need to be handled
+   fifo_fd: descriptor of fifo between MAIN and SUB
+   to_client: pointer to array that will be sent back to client. Set accordingly by
+       what the client inputs.
 
+   RETURNS 1 IF THE SUBPROCESS NEEDS TO TALK TO THE MAINSERVER IN ADDITION TO THE CLIENT
 
-   WILL NEED TO BE PARSED EVENTUALLY!
+   RETURNS 0 IF THE SUBPROCESS ONLY NEEDS TO TALK TO CLIENT
 
 */
-void handle_main_command(char *s, char (*to_client)[]) {
+int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[]) {
   int num_phrases = get_num_phrases(s, ' '); // don't move this line
   char **parsed = parse_input(s, " ");
 
-  printf("Num phrases: %d\n", num_phrases);
-
   /* IMPORTANT 
 
-     THREE TYPES OF "DATA" TO BE SENT BACK TO CLIENT
+     THREE "KINDS" OF DAT A TO BE SENT FROM *SUBPROCESS* to *CLIENT*
 
      Prefixed by: 
      #c : Command (Handled case by case on client)
@@ -241,8 +264,9 @@ void handle_main_command(char *s, char (*to_client)[]) {
      #t|joeuser|this is a public message#
      #t|bobuser|this is a private message!#
 
-     OTHER FORMAT:
-     Whatever you want...
+
+     COMMANDS that involve chatrooms must send
+     data back to the MAINSERVER by writing to the FIFO. 
   */
   
   if(num_phrases == 1) {
@@ -251,13 +275,18 @@ void handle_main_command(char *s, char (*to_client)[]) {
     if(strcmp(parsed[0], "@list") == 0) {
 
       /* Update this !!! */      
-      strcpy(*to_client, "#t|SERVER|chatroom1: 2 people\nchatroom2: 3 people#");
+      //strcpy(*to_client, "#t|SERVER|chatroom1: 2 people\nchatroom2: 3 people#");
+
+      strcpy(*to_fifo, "sub-wants-list");      
+      return 1;      
     } else if(strcmp(parsed[0], "@help") == 0){
       strcpy(*to_client, "#c|display-help#");
+      return 0;
     } else if (!strcmp(parsed[0], "@end")) {
-      exit(0);
+      return 0;
     } else {
       strcpy(*to_client, "#c|display-invalid#");
+      return 0;
     }
     
   } else if (num_phrases == 2) {
@@ -265,7 +294,7 @@ void handle_main_command(char *s, char (*to_client)[]) {
     struct chatroom curr_cr;
     
     /* Double phrase commands */
-    if(strcmp(parsed[0], "@join") == 0) {      
+    if(strcmp(parsed[0], "@join") == 0) {
       char pass = 0;
       cr_name = parsed[1];
       
@@ -282,26 +311,31 @@ void handle_main_command(char *s, char (*to_client)[]) {
       if(!pass){
 	strcpy(*to_client, "#o|chatroom-noexist#");
       }
-      
-    } else if (strcmp(parsed[0], "@create") == 0) {
 
+      return 1;
+    } else if (strcmp(parsed[0], "@create") == 0) {
       
       /* Make sure chatroom doesn't already exist! */
-      cr_name = parsed[1];
-      int i;
+      cr_name = parsed[1];      
       char nametaken = 0;
-      for(i=0; i<sizeof(existing_chatrooms)/sizeof(existing_chatrooms[0]); i++){
+      int i;
+      
+      for(i=0; i<chatrooms_added; i++){	
 	curr_cr = existing_chatrooms[i];
-	if(strcmp(curr_cr.name, cr_name) == 0)
+	if(strcmp(curr_cr.name, cr_name) == 0) {
 	  nametaken = 1;
+	  break;
+	}
       }
+
+      printf("Groupchat nametaken: [%d]\n", nametaken);
 
       if(nametaken)
 	strcpy(*to_client, "#o|chatroom-nametaken#");
       else {    
 	char *cr_name = parsed[1];
 	int lis_sock = server_setup(GPORT++);
-	printf("lis_sock = %d\n", lis_sock);
+	//printf("lis_sock = %d\n", lis_sock);
 	
 
 	printf("[MAIN %d]: chatroom %s created on port %s\n", getpid(), cr_name, int_to_str(GPORT-1));
@@ -309,8 +343,8 @@ void handle_main_command(char *s, char (*to_client)[]) {
 
 	struct chatroom chatrm;
 	chatrm.name = cr_name;      
-	existing_chatrooms[chatrooms_index] = chatrm;
-	chatrooms_index++;
+	existing_chatrooms[chatrooms_added] = chatrm;
+	chatrooms_added++;
 	
 
 	/* Find a way to redo this code */
@@ -327,15 +361,17 @@ void handle_main_command(char *s, char (*to_client)[]) {
 	  } else {
 	    printf("[MAIN %d]: Failed to create chatroom!\n", getpid());
 	  }	
-	}  else {	  
+	}  else {
 	  strcpy(*to_client, "#o|chatroom-success#");
 	}
       }
 
-      
+      return 1;
     } else {
+      
       /* Arguments from client make no sense */
       strcpy(*to_client, "#c|display-invalid#");
+      return 0;
     }
 	     
   }
