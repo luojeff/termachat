@@ -99,9 +99,8 @@ int get_num_phrases(char *s, char c){
     } else if (s[i] != c){
       vp = 1;
     }      
-  }
-  
-  printf("Strlen: %d\n", strlen(s));
+  }  
+
   if(strlen(s) > 0 && s[strlen(s)-1] != ' ')
     np++; // account for last phrase
 

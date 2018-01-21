@@ -1,7 +1,7 @@
+#define _GNU_SOURCE
 #include "networking.h"
 #include "helper.h"
 #include "parser.h"
-
 
 void subprocess(int, char *);
 void listening_server(int, int[2]);
@@ -38,40 +38,43 @@ int main() {
     printf("[MAIN %d]: Main server successfully created!\n", getpid());
   } else {
     print_error();
-    return 0;
-  }  
+  }
 
-  /*
-  printf("global_listen_socket = %d\n", global_listen_socket);  
-  char main_buffer[BUFFER_SIZE];
-  int global_client_socket, gcs2;
-  printf("global_listen_socket = %d\n", global_listen_socket);
-  */
-
+  printf("global_listen_socket: %d\n", global_listen_socket);
+  
   int pipe_to_main[2];
   pipe2(pipe_to_main, O_NONBLOCK);
 
-  int f = 0;
-  f = fork();
+  int f = fork();
 
   if(f == 0){
+    sleep(1);
+
+    /* Child */
     mainserver(pipe_to_main);
     exit(0);
+  } else {  
+    listening_server(global_listen_socket, pipe_to_main);
   }
   
-  listening_server(global_listen_socket, pipe_to_main);
-  
   /*
-  while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {    
+
+    printf("global_listen_socket = %d\n", global_listen_socket);  
+    char main_buffer[BUFFER_SIZE];
+    int global_client_socket, gcs2;
+    printf("global_listen_socket = %d\n", global_listen_socket);
+    while (read(global_client_socket, main_buffer, sizeof(main_buffer))) {    
     printf("[MAIN %d]: received [%s]\n", getpid(), main_buffer);      
     char *to_write;
     handle_main_command(main_buffer, &to_write);
     write(global_client_socket, to_write, sizeof(main_buffer));
-  }  
-  close(global_client_socket);
+    }  
+    close(global_client_socket);
   */
 }
 
+
+/* Listens for incoming connections from other clients */
 void listening_server(int global_listen_socket, int pipe_to_main[2]){
   int global_client_socket;
 
@@ -83,25 +86,24 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
       print_error();
       exit(0);
     }
-    printf("global_client_socket = %d\n", global_client_socket);
+    
     write(pipe_to_main[1], &global_client_socket, sizeof(int));
   }
 }
 
+
+/* Forks off subprocess to deal w/ client */
 void mainserver(int pipe_to_main[2]){
   close(pipe_to_main[1]);
 
   while(1){
     int global_client_socket;
-    int r = 0;
-    r = read(pipe_to_main[0], &global_client_socket, 4);
+    int r = read(pipe_to_main[0], &global_client_socket, 4);
 
     // Fork off subprocess to talk to client
-    int f = 0;
-    if(r != 0){
-      f = fork();
+    if(r > 0){
       
-      if(f == 0){
+      if(fork() == 0) {	
 	subprocess(global_client_socket, "test");
 	exit(0);
       } else {
@@ -111,15 +113,16 @@ void mainserver(int pipe_to_main[2]){
   }
 }
 
+
 void subprocess(int socket, char *group_name) {
   char buffer[BUFFER_SIZE];
   
   while (read(socket, buffer, sizeof(buffer))) {
-    printf("[SUB %d for %s]: received [%s]\n", getpid(), buffer, group_name);
+    printf("[SUB %d for %s]: received [%s]\n", getpid(), group_name, buffer);
     
-    char *to_write;
-    handle_main_command(buffer, &to_write);
-    write(socket, to_write, sizeof(buffer));
+    char *write_to_client;
+    handle_main_command(buffer, &write_to_client);
+    write(socket, write_to_client, sizeof(buffer)); // SIZEOF(BUFFER) ??????
   }
   
   close(socket);
@@ -131,27 +134,27 @@ void subprocess(int socket, char *group_name) {
    subserver method that handles commands from a client in a groupchat
 */
 /*
-void handle_groupchat_command(char *s, char **to_client){
+  void handle_groupchat_command(char *s, char **to_client){
   if(strcmp(s, "do") == 0) {
     
-    *to_client = "success";
+  *to_client = "success";
   
   } else if(strcmp(s, "quit") == 0) {
     
-    // connect to GLOBAL automatically
-    *to_client = "success"; // SEND ID BACK!!!
+  // connect to GLOBAL automatically
+  *to_client = "success"; // SEND ID BACK!!!
     
   } else if (strcmp(s, "members") == 0) {
     
-    /* List ALL created SUBGROUPS */
+  /* List ALL created SUBGROUPS */
 /*
-    *to_client = "success";
+ *to_client = "success";
     
-  } else {
+ } else {
     
-    *to_client = "invalid command";
-  }
-}
+ *to_client = "invalid command";
+ }
+ }
 */
 
 
@@ -194,7 +197,7 @@ void handle_main_command(char *s, char **to_client) {
 
      OTHER FORMAT:
      Whatever you want...
-   */
+  */
   
   if(num_phrases == 1) {
     

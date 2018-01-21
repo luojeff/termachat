@@ -23,10 +23,10 @@ forking_server.o: forking_server.c $(HEADERS)
 networking.o: networking.c $(HEADERS)
 	@$(CC) -c $<
 
-helper.o: helper.c helper.h
+helper.o: helper.c helper.h $(HEADERS)
 	@$(CC) -c $<
 
-parser.o: parser.c parser.h
+parser.o: parser.c parser.h $(HEADERS)
 	@$(CC) -c $<
 
 clean:
