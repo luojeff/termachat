@@ -104,6 +104,10 @@ int main(int argc, char **argv) {
       //printf("Received *OTHER* response from server!\n");
       if(strcmp("chatroom-success", next) == 0){
 	printf("Chatroom successfully created!\n");
+      } else if(strcmp("chatroom-noexist", next) == 0){
+	printf("Chatroom does not exist!\n");
+      } else if(strcmp("chatroom-nametaken", next) == 0){
+	printf("Chatroom w/ input name already exists!\n");
       }
     } else {
       /* Invalid response from server! */

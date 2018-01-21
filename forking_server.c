@@ -3,12 +3,26 @@
 #include "helper.h"
 #include "parser.h"
 
+#define MAX_NUM_MEMBERS 16
+
 void subprocess(int, char *);
 void listening_server(int, int[2]);
 void mainserver(int[2]);
-void handle_main_command(char *, char **);
+void handle_main_command(char *, char (*)[]);
 //void handle_groupchat_command(char *, char **);
 int GPORT = PORT;
+
+
+struct chatroom {
+  char *name;  
+  int num_members;
+  int port;
+  int server_sd;
+  char *members[MAX_NUM_MEMBERS];
+};
+
+int chatrooms_index = 0;
+struct chatroom existing_chatrooms[32];
 
 
 static void sighandler(int signo){
@@ -117,10 +131,10 @@ void mainserver(int pipe_to_main[2]){
 void subprocess(int socket, char *group_name) {
   char buffer[BUFFER_SIZE];
   
-  while (read(socket, buffer, sizeof(buffer))) {
+  while ((read(socket, buffer, sizeof(buffer)) > 0)) {
     printf("[SUB %d for %s]: received [%s]\n", getpid(), group_name, buffer);
     
-    char *write_to_client;
+    char write_to_client[BUFFER_SIZE];
     handle_main_command(buffer, &write_to_client);
     write(socket, write_to_client, sizeof(buffer)); // SIZEOF(BUFFER) ??????
   }
@@ -168,7 +182,7 @@ void subprocess(int socket, char *group_name) {
    WILL NEED TO BE PARSED EVENTUALLY!
 
 */
-void handle_main_command(char *s, char **to_client) {
+void handle_main_command(char *s, char (*to_client)[]) {
   int num_phrases = get_num_phrases(s, ' '); // don't move this line
   char **parsed = parse_input(s, " ");
 
@@ -203,67 +217,98 @@ void handle_main_command(char *s, char **to_client) {
     
     /* Single phrase commmands */    
     if(strcmp(parsed[0], "@list") == 0) {
-      *to_client = "#t|SERVER|chatroom1: 2 people\nchatroom2: 3 people#";
+
+      /* Update this !!! */      
+      strcpy(*to_client, "#t|SERVER|chatroom1: 2 people\nchatroom2: 3 people#");
     } else if(strcmp(parsed[0], "@help") == 0){
-      *to_client = "#c|display-help#";
+      strcpy(*to_client, "#c|display-help#");
     } else if (!strcmp(parsed[0], "@end")) {
       exit(0);
     } else {
-      *to_client = "#c|display-invalid#";
+      strcpy(*to_client, "#c|display-invalid#");
     }
     
   } else if (num_phrases == 2) {
+    char *cr_name;
+    struct chatroom curr_cr;
     
     /* Double phrase commands */
-    if(strcmp(parsed[0], "@join") == 0) {
-    
-      *to_client = "10002"; // MUST SEND PORT BACK!!!
-    } else if (strcmp(parsed[0], "@create") == 0) {
-      /* Make sure chatroom doesn't already exist! */    
-    
-      char *cr_name = parsed[1];
-
-      // FORK SUBSERVER
-      int lis_sock = server_setup(GPORT++);
-      //printf("lis_sock = %d\n", lis_sock);
-
-      printf("[MAIN %d]: chatroom %s created on port %s\n", getpid(), cr_name, int_to_str(GPORT-1));
-    
-      int f = fork();
-      //printf("fork process = %d\n", f);    
-    
-      if (f == 0) {
-	int client_sock = server_connect(lis_sock);
-	//printf("client_sock = %d\n", client_sock);
+    if(strcmp(parsed[0], "@join") == 0) {      
+      char pass = 0;
+      cr_name = parsed[1];
       
-	if (client_sock != -1) {
-	  subprocess(client_sock, cr_name);
-
-	  printf("[MAIN %d]: Chatroom on port %s closed!\n", getpid(), int_to_str(GPORT-1));
-	} else {
-	  printf("[MAIN %d]: Failed to create chatroom!\n", getpid());
-	}
-      
-      } else {
-	*to_client = "#o|chatroom-success#";
+      int i;
+      for(i=0; i<sizeof(existing_chatrooms)/sizeof(existing_chatrooms[0]); i++){
+	curr_cr = existing_chatrooms[i];
+	if(strcmp(curr_cr.name, cr_name) == 0) {
+	  sprintf(*to_client, "#c|join|%s#", int_to_str(curr_cr.port));
+	  pass = 1;
+	}	
       }
+      // SHOULD RETURN PORT OF RESPECTIVE CHATROOM
+
+      if(!pass){
+	strcpy(*to_client, "#o|chatroom-noexist#");
+      }
+      
+    } else if (strcmp(parsed[0], "@create") == 0) {
+      
+      /* Make sure chatroom doesn't already exist! */
+      cr_name = parsed[1];
+      int i;
+      char nametaken = 0;
+      for(i=0; i<sizeof(existing_chatrooms)/sizeof(existing_chatrooms[0]); i++){
+	curr_cr = existing_chatrooms[i];
+	if(strcmp(curr_cr.name, cr_name) == 0)
+	  nametaken = 1;
+      }
+
+      if(nametaken)
+	strcpy(*to_client, "#o|chatroom-nametaken#");
+      else {    
+	char *cr_name = parsed[1];
+
+	struct chatroom chatrm;
+	chatrm.name = cr_name;
+      
+	existing_chatrooms[chatrooms_index] = chatrm;
+	chatrooms_index++;
+      
+
+	// FORK SUBSERVER
+	int lis_sock = server_setup(GPORT++);
+	//printf("lis_sock = %d\n", lis_sock);
+
+	printf("[MAIN %d]: chatroom %s created on port %s\n", getpid(), cr_name, int_to_str(GPORT-1));
+    
+	int f = fork();
+	//printf("fork process = %d\n", f);    
+    
+	if (f == 0) {
+	  int client_sock = server_connect(lis_sock);
+	  //printf("client_sock = %d\n", client_sock);
+      
+	  if (client_sock != -1) {
+	    subprocess(client_sock, cr_name);
+
+	    printf("[MAIN %d]: Chatroom on port %s closed!\n", getpid(), int_to_str(GPORT-1));
+	  } else {
+	    printf("[MAIN %d]: Failed to create chatroom!\n", getpid());
+	  }
+	
+	} else {
+	  strcpy(*to_client, "#o|chatroom-success#");
+	}
+      }
+
+      
     } else {
-      *to_client = "#c|display-invalid#";
+
+      /* Arguments from client make no sense */
+      strcpy(*to_client, "#c|display-invalid#");
     }
 	     
   }
 
   free(parsed);
 }
-
-/*
-  void process(char * s) {
-  while (*s) {
-  if (*s >= 'a' && *s <= 'z')
-  *s = ((*s - 'a') + 13) % 26 + 'a';
-  else  if (*s >= 'A' && *s <= 'Z')
-  *s = ((*s - 'a') + 13) % 26 + 'a';
-  s++;
-  }
-  }
-*/
