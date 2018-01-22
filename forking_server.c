@@ -42,16 +42,6 @@ int chatrooms_added = 0;
 struct chatroom existing_chatrooms[MAX_NUM_CHATROOMS];
 
 
-/* For semaphores if needed */
-#define SEM_KEY 31415
-union semun {
-  int val;
-  struct semid_ds *buf;
-  unsigned short *array;
-  struct seminfo *__buf;
-};
-
-
 static void sighandler(int signo){
   switch(signo) {
   case SIGINT:
@@ -139,7 +129,7 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
     
     //fork off new process to talk to client and have it connect to the new FIFO
     if(fork() == 0) {	
-      printf("Subprocess forked off\n");
+      //printf("Subprocess forked off\n");
       subprocess(global_client_socket, "pub-test", fifo_name);
       exit(0);
     }
@@ -153,69 +143,38 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
 void mainserver(int pipe_to_main[2]){
   close(pipe_to_main[1]);
 
-  int fd; // SHOULD THIS BE HERE?
-  int server_fds[(MAX_NUM_CHATROOMS + 1) * MAX_NUM_MEMBERS];
-
-  
-
-  /* Create semaphore */
-  union semun su;
-  struct sembuf sbuf = {0, -1, SEM_UNDO};
-  int sem_id;
-  su.val = 1;    
-  if((sem_id = semget(SEM_KEY, 1, IPC_CREAT | IPC_EXCL | 0644)) < 0)
-    print_error();
-  else
-    semctl(sem_id, 0, SETVAL, su);    
-  if((semop(sem_id, &sbuf, 1)) < 0)
-    print_error();
-
-  
+  int fd; // SHOULD THIS BE HERE?  
+  //int server_fds[(MAX_NUM_CHATROOMS + 1) * MAX_NUM_MEMBERS];  
 
   while(1){
-    char fifo_name[20];
-    
+    char fifo_name[20];    
     int r = read(pipe_to_main[READ], fifo_name, 20);
 
     //printf("[MAIN %d]: Received fifo [%s]\n", getpid(), fifo_name);
     
     // Handle new client setup stuff
     if(r > 0){
-      if((fd = open(fifo_name, O_RDWR)) > 0)
+      if((fd = open(fifo_name, O_RDONLY)) > 0)
 	printf("[MAIN %d]: Connected to fifo [%s]\n", getpid(), fifo_name);
       else
 	printf("[MAIN %d]: Failed to connect to fifo [%s]\n", getpid(), fifo_name);
     }
 
-    // FOR TESTING
     if(fd > 0){
-      char from_sub[BUFFER_SIZE];
-
-      // Try to access resource and wait to decrement
-      if((sem_id = semget(SEM_KEY, 0, 0644)) < 0)
-	print_error();
-      if((semop(sem_id, &sbuf, 1)) < 0)
-	print_error();
+      char from_sub[BUFFER_SIZE];      
 
       // Read from subprocess fifo
-      if(read(fd, from_sub, sizeof(from_sub)) > 0) {	
-	printf("[MAIN %d]: Received from subprocess [%s]\n", getpid(), from_sub);
+      if(read(fd, from_sub, sizeof(from_sub)) > 0) {
+	close(fd);
+
+	// Open in write mode
+	fd = open(fifo_name, O_WRONLY);	
 	write(fd, "test-1", 10);
+	close(fd);
 
-	// Free semaphore
-	sbuf.sem_op = 1;
-	if((semop(sem_id, &sbuf, 1)) < 0)
-	  print_error();
-      }
-
-      // Remove semaphore once able ... //
-      sbuf.sem_op = 1;
-      if((semop(sem_id, &sbuf, 1)) < 0)
-	print_error();
-      if(semctl(sem_id, 1, IPC_RMID) < 0)
-	print_error();
-      else
-	printf("Semaphore removed\n");
+	// Reopen in read mode
+	fd = open(fifo_name, O_RDONLY);
+      }      
     }
   }  
 }
@@ -223,15 +182,9 @@ void mainserver(int pipe_to_main[2]){
 
 void subprocess(int socket, char *group_name, char* fifo_name) {
   char buffer[BUFFER_SIZE];
-
-  // Descriptor for fifo to mainserver
-  int fd;
-
-  // For semaphores 
-  struct sembuf sbuf = {0, -1, SEM_UNDO};
-  int sem_id;
+  int fd;  
   
-  if((fd = open(fifo_name, O_RDWR)) > 0)
+  if((fd = open(fifo_name, O_WRONLY)) > 0)
     printf("[SUB %d for %s]: Connected to fifo [%s]\n", getpid(), group_name, fifo_name);
 
   while ((read(socket, buffer, sizeof(buffer)) > 0)) {
@@ -244,35 +197,19 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
     write(socket, write_to_client, BUFFER_SIZE);
     
     // Handle writing to mainserver and receiving response
-    // Uses semaphore to coordinate responses
     if(resp > 0) {
-      
-      // Try to access resource and decrement semaphore
-      if((sem_id = semget(SEM_KEY, 0, 0644)) < 0)
-	print_error();
-      if((semop(sem_id, &sbuf, 1)) < 0)
-	print_error();
-      
       write(fd, write_to_fifo, BUFFER_SIZE);
       printf("[SUB %d for %s]: Wrote to MAIN [%s]\n", getpid(), group_name, write_to_fifo);
+      close(fd);
 
-      // Release semaphore
-      sbuf.sem_op = 1;
-      if((semop(sem_id, &sbuf, 1)) < 0)
-	print_error();      
-
-      // Wait until resource is available
-      sbuf.sem_op = -1;
-      if((semop(sem_id, &sbuf, 1)) < 0)
-	print_error();
-      
+      // Open in read mode 
+      fd = open(fifo_name, O_RDONLY);
       read(fd, read_from_fifo, BUFFER_SIZE);
       printf("[SUB %d for %s]: Received [%s] from MAIN\n", getpid(), group_name, read_from_fifo);
+      close(fd);
 
-      // Release semaphore
-      sbuf.sem_op = 1;
-      if((semop(sem_id, &sbuf, 1)) < 0)
-	print_error(); 
+      // Reopen in write mode
+      fd = open(fifo_name, O_WRONLY);
     }
   }
   
