@@ -164,29 +164,60 @@ void mainserver(int pipe_to_main[2]){
 
     
     // Constantly read from all FIFOs
-    int i;
-    for(i=0; i<count; i++){
+    /*
+      int i;
+      for(i=0; i<count; i++){
       int s_fd = server_fds[i];
       char from_sub[BUFFER_SIZE];      
 
       // Read from subprocess fifo
       if(read(s_fd, from_sub, sizeof(from_sub)) > 0) {
 
-	// Process what subserver sends
-	if(strcmp(from_sub, "sub-wants-list") == 0) {
+      // Process what subserver sends
+      if(strcmp(from_sub, "sub-wants-list") == 0) {
 	
-	  close(s_fd);
+      close(s_fd);
 
-	  // Open in write mode
-	  s_fd = open(fifo_name, O_WRONLY);	
-	  write(s_fd, "test-1", 10);
-	  close(s_fd);
+      // Open in write mode
+      s_fd = open(fifo_name, O_WRONLY);	
+      write(s_fd, "test-1", 10);
+      close(s_fd);
 
-	  // Reopen in read mode
-	  s_fd = open(fifo_name, O_RDONLY);
-	}
+      // Reopen in read mode
+      s_fd = open(fifo_name, O_RDONLY);
+      }
+      }      
+    */
+
+    char from_sub[BUFFER_SIZE]; 
+    int s_fd = server_fds[0];
+    if(read(s_fd, from_sub, sizeof(from_sub)) > 0) {
+      // Process what subserver sends
+      if(strcmp(from_sub, "sub-wants-list") == 0) {	
+	close(s_fd);
+	// Open in write mode
+	s_fd = open(fifo_name, O_WRONLY);	
+	write(s_fd, "test-1", 10);
+	close(s_fd);
+	// Reopen in read mode
+	s_fd = open(fifo_name, O_RDONLY);
+      }
+    }
+
+    if(count == 1 && (s_fd = server_fds[count] && (read(s_fd, from_sub, sizeof(from_sub)) > 0))) {
+      // Process what subserver sends
+      if(strcmp(from_sub, "sub-wants-list") == 0) {	
+	close(s_fd);
+	// Open in write mode
+	s_fd = open(fifo_name, O_WRONLY);	
+	write(s_fd, "test-1", 10);
+	close(s_fd);
+	// Reopen in read mode
+	s_fd = open(fifo_name, O_RDONLY);
       }      
     }
+
+  
     
   }
   
