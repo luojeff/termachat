@@ -143,46 +143,59 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
 void mainserver(int pipe_to_main[2]){
   close(pipe_to_main[1]);
 
-  int fd; // SHOULD THIS BE HERE?  
-  //int server_fds[(MAX_NUM_CHATROOMS + 1) * MAX_NUM_MEMBERS];  
+  int fd;
+  int count = 0;
+  int server_fds[(MAX_NUM_CHATROOMS + 1) * MAX_NUM_MEMBERS];
+  char fifo_name[20];
 
   while(1){
-    char fifo_name[20];    
-    int r = read(pipe_to_main[READ], fifo_name, 20);
-
     //printf("[MAIN %d]: Received fifo [%s]\n", getpid(), fifo_name);
     
     // Handle new client setup stuff
-    if(r > 0){
-      if((fd = open(fifo_name, O_RDONLY)) > 0)
+    if(read(pipe_to_main[READ], fifo_name, 20) > 0) {
+      
+    
+      if((fd = open(fifo_name, O_RDONLY)) > 0) {
 	printf("[MAIN %d]: Connected to fifo [%s]\n", getpid(), fifo_name);
-      else
+	server_fds[count++] = fd;
+      } else
 	printf("[MAIN %d]: Failed to connect to fifo [%s]\n", getpid(), fifo_name);
     }
 
-    if(fd > 0){
+    
+    // Constantly read from all FIFOs
+    int i;
+    for(i=0; i<count; i++){
+      int s_fd = server_fds[i];
       char from_sub[BUFFER_SIZE];      
 
       // Read from subprocess fifo
-      if(read(fd, from_sub, sizeof(from_sub)) > 0) {
-	close(fd);
+      if(read(s_fd, from_sub, sizeof(from_sub)) > 0) {
 
-	// Open in write mode
-	fd = open(fifo_name, O_WRONLY);	
-	write(fd, "test-1", 10);
-	close(fd);
+	// Process what subserver sends
+	if(strcmp(from_sub, "sub-wants-list") == 0) {
+	
+	  close(s_fd);
 
-	// Reopen in read mode
-	fd = open(fifo_name, O_RDONLY);
+	  // Open in write mode
+	  s_fd = open(fifo_name, O_WRONLY);	
+	  write(s_fd, "test-1", 10);
+	  close(s_fd);
+
+	  // Reopen in read mode
+	  s_fd = open(fifo_name, O_RDONLY);
+	}
       }      
     }
-  }  
+    
+  }
+  
 }
 
 
 void subprocess(int socket, char *group_name, char* fifo_name) {
   char buffer[BUFFER_SIZE];
-  int fd;  
+  int fd;
   
   if((fd = open(fifo_name, O_WRONLY)) > 0)
     printf("[SUB %d for %s]: Connected to fifo [%s]\n", getpid(), group_name, fifo_name);
