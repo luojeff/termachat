@@ -355,7 +355,6 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[]) {
     
     /* Single phrase commmands */    
     if(strcmp(parsed[0], "@list") == 0) {
-
       /* Update this !!! */      
       //strcpy(*to_client, "#t|SERVER|chatroom1: 2 people\nchatroom2: 3 people#");
 
@@ -399,7 +398,7 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[]) {
     } else if (strcmp(parsed[0], "@create") == 0) {
       
       /* Make sure chatroom doesn't already exist! */
-      cr_name = parsed[1];      
+      cr_name = parsed[1];
       char nametaken = 0;
       int i;
       
@@ -448,13 +447,15 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[]) {
       }
 
       return 1;
+      
     } else {
       
-      /* Arguments from client make no sense */
       strcpy(*to_client, "#c|display-invalid#");
       return 0;
     }
 	     
+  } else {    
+    strcpy(*to_client, "#c|display-invalid#");
   }
 
   free(parsed);

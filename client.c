@@ -30,8 +30,7 @@ int main(int argc, char **argv) {
   char current_group[MAX_GROUP_NAME_SIZE];
   strcpy(current_group, "PUB");
   
-  char *ip_addr, input_buffer[BUFFER_SIZE];
-
+  char *ip_addr;
   if (argc == 2) {
     ip_addr = argv[1];
     printf("Attempting to connect to %s:%s\n", ip_addr, int_to_str(PORT));
@@ -50,7 +49,7 @@ int main(int argc, char **argv) {
 
   current_socket = server_socket;
 
-  char **client_parsed, **args;
+  char input_buffer[BUFFER_SIZE], **client_parsed, **args;
 
   while (1) {
     printf("[YOU @ %s]: ", current_group);
@@ -72,11 +71,11 @@ int main(int argc, char **argv) {
     args = parse_input(client_parsed[1], "|");
     
     /*
-    int i=0;
-    while(args[i]){
+      int i=0;
+      while(args[i]){
       printf("args[%d]=%s\n", i, args[i]);
       i++;
-    }
+      }
     */
 
     char type = args[0][0];
@@ -87,7 +86,11 @@ int main(int argc, char **argv) {
       if(strcmp("display-invalid", command) == 0){
 	printf("Invalid command! Type @help for help.\n");
       } else if (strcmp("display-help", command) == 0){
-	printf("Supported commands:\n@help\n@create\n@join\n@end\n");
+        int fd = open("help", O_RDONLY);
+	char contents[256];
+	read(fd, contents, sizeof(contents));
+	printf("%s\n", contents);
+	close(fd);
       } else {
 	printf("TEST 1\n");
       }
@@ -118,33 +121,33 @@ int main(int argc, char **argv) {
 
 
     /*
-    if(strcmp(client_parsed[0], "@join") == 0) {
+      if(strcmp(client_parsed[0], "@join") == 0) {
       strcat(contents, parsed[1]);
       write(current_socket, contents, sizeof(contents));
       read(current_socket, input_buffer, sizeof(input_buffer));
       printf("Joining chatroom %s:%s\n", ip_addr, input_buffer);
 
       /* Gets next additional port */ /*
-      int server_sock;
-      if((server_sock = client_setup( ip_addr, input_buffer)) != -1)
-	printf("Connected to chatroom %s:%s!\n", ip_addr, input_buffer);
-      else
-	printf("Error: failed to connect!\n");
+	 int server_sock;
+	 if((server_sock = client_setup( ip_addr, input_buffer)) != -1)
+	 printf("Connected to chatroom %s:%s!\n", ip_addr, input_buffer);
+	 else
+	 printf("Error: failed to connect!\n");
       
-      //printf("SERVER_SOCK: %d\n", server_sock);
+	 //printf("SERVER_SOCK: %d\n", server_sock);
 
-      strcpy(current_group, "CR-");
-      strncat(current_group, input_buffer, MAX_GROUP_NAME_SIZE);
-      current_socket = server_sock;
-    } else {
-      write(current_socket, input_buffer, sizeof(input_buffer));
-      read(current_socket, input_buffer, sizeof(input_buffer));
+	 strcpy(current_group, "CR-");
+	 strncat(current_group, input_buffer, MAX_GROUP_NAME_SIZE);
+	 current_socket = server_sock;
+	 } else {
+	 write(current_socket, input_buffer, sizeof(input_buffer));
+	 read(current_socket, input_buffer, sizeof(input_buffer));
       
-      if(strcmp(input_buffer, "chatroom-success") == 0)
-	printf("Chatroom created!\n");
-      else
-	printf("[%s]: [%s]\n", current_group, input_buffer);
-    } */
+	 if(strcmp(input_buffer, "chatroom-success") == 0)
+	 printf("Chatroom created!\n");
+	 else
+	 printf("[%s]: [%s]\n", current_group, input_buffer);
+	 } */
   }
 
   free(client_parsed);

@@ -1,0 +1,20 @@
+@help
+    Lists this page
+
+@list
+    List all existing chatrooms
+
+@current
+    Get notified of which chatroom you're in currently
+
+@create <chatroom_name>
+    Create chatroom named chatroom_name
+
+@join <chatroom_name>
+    Join chatroom named chatroom_name
+
+@delete <chatroom_name>
+    Deletes chatroom named chatroom_name
+
+@pm <user_name>
+    Private messages user named user_name
