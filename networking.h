@@ -26,6 +26,7 @@
 /* Chatroom limitations */
 #define MAX_NUM_MEMBERS 16
 #define MAX_NUM_CHATROOMS 16
+#define MAX_CLIENTS ((MAX_NUM_MEMBERS) * (MAX_NUM_CHATROOMS + 1))
 
 #define READ 0
 #define WRITE 1
