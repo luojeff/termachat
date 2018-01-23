@@ -2,6 +2,7 @@
 #include "networking.h"
 #include "helper.h"
 #include "parser.h"
+#include "semaphore.h"
 
 void subprocess(int, char *, char*);
 void listening_server(int, int[2]);
@@ -13,89 +14,10 @@ void intHandler(int);
 
 static volatile int cont = 1;
 
-int GPORT = PORT;
-
-union semun {
-  int val;
-  struct semid_ds *buf;
-  unsigned short *array;
-  struct seminfo *__buf;
-};
-
-/* Storing information about chatrooms */
-struct chatroom {
-  char *name;
-  int num_members;
-  int port;
-  int server_sd;
-  char *fifo_to_main;
-  
-  char *members[MAX_NUM_MEMBERS];
-};
-
-#define SEM_KEY 12345
 int chatrooms_added = 0;
 struct chatroom existing_chatrooms[MAX_NUM_CHATROOMS];
 
-// Creates and decrements a semaphore
-int create_semaphore(int sem_key){
-  struct sembuf sbuf = {0, -1, SEM_UNDO};
-  union semun su;  
-  su.val = 1;
-  
-  int sem_id;  
-  if((sem_id = semget(sem_key, 1, IPC_CREAT | IPC_EXCL | 0644)) < 0) {
-    print_error();
-  }
-  else
-    semctl(sem_id, 0, SETVAL, su);
-  if((semop(sem_id, &sbuf, 1)) < 0) {
-    print_error();
-  }
-
-  return sem_id;
-}
-
-
-int get_semaphore(int sem_key){
-  int sem_id;
-  if((sem_id = semget(sem_key, 0, 0644)) < 0) {
-    printf("error: [%d]\n", errno);
-    print_error();
-  }
-  return sem_id;
-}
-
-
-void wait_semaphore(int sem_id){
-  struct sembuf sbuf = {0, -1, SEM_UNDO};
-  if((semop(sem_id, &sbuf, 1)) < 0) {
-    print_error();    
-  }
-}
-
-void free_semaphore(int sem_id){
-  struct sembuf sbuf = {0, 1, SEM_UNDO};
-  if((semop(sem_id, &sbuf, 1)) < 0)
-    print_error();
-}
-
-
-// Attempt to remove semaphore. Will wait until semaphore is free
-// before deleting
-int remove_semaphore(int sem_id){
-  struct sembuf sbuf = {0, 1, SEM_UNDO};
-  
-  // Wait until semaphore freed and delete semaphore
-  // Remove semaphore
-  if((semop(sem_id, &sbuf, 1)) < 0)
-    print_error();
-  if(semctl(sem_id, 1, IPC_RMID) < 0)
-    print_error();
-  else
-    printf("Semaphore removed\n");
-}
-
+int GPORT = PORT;
 
 // KEPT FOR TESTING PURPOSES
 void _subprocess(int socket, char *group_name) {  
@@ -126,11 +48,6 @@ static void sighandler(int signo){
 
 void intHandler(int sig){
   cont = 0;
-}
-
-void print_error(){
-  printf("Error from P%d: %s\n", getpid(), strerror(errno));
-  exit(0);
 }
 
 int main() {

@@ -9,3 +9,8 @@ char *int_to_str(int val){
   sprintf(str, "%d", val);
   return str;
 }
+
+void print_error(){
+  printf("Error from P%d: %s\n", getpid(), strerror(errno));
+  exit(0);
+}
