@@ -47,7 +47,7 @@ clean:
 debug-server: debug-fserver
 	@valgrind --leak-check=yes --track-origins=yes ./$<
 
-debug-client: debug-client
+debug-client: debug-theclient
 	@valgrind --leak-check=yes --track-origins=yes ./$<
 
 debug-forking: debug-client debug-fserver
@@ -55,8 +55,8 @@ debug-forking: debug-client debug-fserver
 debug-fserver: debug-forking_server.o debug-networking.o
 	@$(CC) -g -o debug-server debug-forking_server.o debug-networking.o
 
-debug-client: debug-client.o debug-networking.o
-	@$(CC) -g -o debug-client debug-client.o debug-networking.o
+debug-theclient: debug-client.o debug-networking.o
+	@$(CC) -g -o debug-theclient debug-client.o debug-networking.o
 
 debug-client.o: client.c networking.h
 	@$(CC) -g -c client.c
