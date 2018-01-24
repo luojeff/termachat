@@ -125,9 +125,12 @@ void handle_sub_response(char *input_buffer, int current_socket){
       printf("%s\n", contents);
       close(fd);
       
-    } else {
-      printf("TEST 1\n");
+    } else if(strcmp("exit", command) == 0){
+      printf("Ended subprocess. Exiting...\n");
+      exit(0);
       
+    }  else {
+      printf("No handling case for client -- check server code!\n");
     }
     
   } else if (type == 't'){
@@ -162,8 +165,9 @@ void handle_sub_response(char *input_buffer, int current_socket){
 
       // Recursive implementation
       handle_sub_response(sub_response, current_socket);      
+    } else {
+      printf("No handling case for client -- check server code!\n");
     }
-    
   } else {
     /* Invalid response from server! */
   }

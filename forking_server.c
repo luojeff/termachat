@@ -15,6 +15,7 @@ void intHandler(int);
 //void handle_groupchat_command(char *, char **);
 
 static volatile int cont = 1;
+int repeat = 1;
 
 int GPORT = PORT;
 
@@ -212,7 +213,7 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
   } else
     printf("[SUB %d for %s]: Error creating FD!\n", getpid(), group_name);
 
-  while ((read(socket, buffer, sizeof(buffer)) > 0)) {
+  while (repeat && ((read(socket, buffer, sizeof(buffer)) > 0))) {
     printf("[SUB %d for %s]: Received [%s]\n", getpid(), group_name, buffer);
     
     char write_to_client[BUFFER_SIZE];
@@ -384,10 +385,11 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[]) {
     } else if(strcmp(parsed[0], "@help") == 0){
       strcpy(*to_client, "#c|display-help#");
       return 0;
-    } else if (!strcmp(parsed[0], "@end")) {
-      return 0;
+    } else if (!strcmp(parsed[0], "@exit")) {
+      strcpy(*to_client, "#c|exit#");
+      repeat = 0;
     } else {
-      strcpy(*to_client, "#c|display-invalid#");
+      strcpy(*to_client, "#c|display-invalid#");      
       return 0;
     }
     
