@@ -310,7 +310,13 @@ void handle_sub_command(char *s, char (*to_sub)[]){
   if(strcmp(s, "sub-wants-list") == 0){
 
     // To be given to client to parse
-    char to_send[] = "#t|SERVER|\nAvailable chatrooms:\nchatroom1:user1, user2\nchatroom2:user3, user4#";
+    char to_send[BUFFER_SIZE] = "#t|SERVER|\nAvailable chatrooms:\n-------------------\n";    
+
+    // Figure out way to get all chatroom data
+    // ONLY FOR TESTING
+    strcat(to_send, "chatroom1:user1, user2\nchatroom2:user3, user4");
+    
+    strcat(to_send, "#");
     strcpy(*to_sub, to_send);
     
   } else {

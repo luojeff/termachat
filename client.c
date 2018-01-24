@@ -138,7 +138,10 @@ void handle_sub_response(char *input_buffer, int current_socket){
     char *text = args[2];
 
     /* Text */
-    printf("[%s]: [%s]\n", sender, text);
+    if(strcmp(sender, "SERVER") == 0)
+      printf("[%s]: %s\n", sender, text);
+    else
+      printf("[%s]: [%s]\n", sender, text);    
   } else if (type == 'o'){
     char *next = args[1];
 

@@ -1,5 +1,5 @@
 @help
-    Lists this page
+    Displays this page
 
 @list
     List all existing chatrooms
@@ -18,3 +18,6 @@
 
 @pm <user_name>
     Private messages user named user_name
+
+@exit
+    End the subprocess and exit the client program
