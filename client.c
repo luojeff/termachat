@@ -2,6 +2,8 @@
 #include "helper.h"
 #include "parser.h"
 
+void handle_sub_response(char *, int);
+
 static void client_sighandler(int signo){
   switch(signo) {
     //case SIGINT:
@@ -49,7 +51,7 @@ int main(int argc, char **argv) {
 
   current_socket = server_socket;
 
-  char input_buffer[BUFFER_SIZE], **client_parsed, **args;
+  char input_buffer[BUFFER_SIZE];
 
   while (1) {
     printf("[YOU @ %s]: ", current_group);
@@ -62,63 +64,7 @@ int main(int argc, char **argv) {
     write(current_socket, input_buffer, sizeof(input_buffer));
     read(current_socket, input_buffer, sizeof(input_buffer));
  
-    if(count_occur(input_buffer, "#") != 2){
-      printf("Received invalid response by server! Check server code!\n");      
-      exit(0);
-    }
-
-    client_parsed = parse_input(input_buffer, "#");
-    args = parse_input(client_parsed[1], "|");
-    
-    /*
-      int i=0;
-      while(args[i]){
-      printf("args[%d]=%s\n", i, args[i]);
-      i++;
-      }
-    */
-
-    char type = args[0][0];
-    if(type == 'c'){
-      char *command = args[1];
-
-      /* Typical commands */
-      if(strcmp("display-invalid", command) == 0){
-	printf("Invalid command! Type @help for help.\n");
-      } else if (strcmp("display-help", command) == 0){
-        int fd = open("help", O_RDONLY);
-	char contents[256];
-	read(fd, contents, sizeof(contents));
-	printf("%s\n", contents);
-	close(fd);
-      } else {
-	printf("TEST 1\n");
-      }
-    } else if (type == 't'){
-      char *sender = args[1];
-      char *text = args[2];
-
-      /* Text */
-      printf("[%s]: [%s]\n", sender, text);
-    } else if (type == 'o'){
-      char *next = args[1];
-
-      /* Other */
-      //printf("Received *OTHER* response from server!\n");
-      if(strcmp("chatroom-success", next) == 0){
-	printf("Chatroom successfully created!\n");
-      } else if(strcmp("chatroom-noexist", next) == 0){
-	printf("Chatroom does not exist!\n");
-      } else if(strcmp("chatroom-nametaken", next) == 0){
-	printf("Chatroom w/ input name already exists!\n");
-      } else if(strcmp("requesting", next) == 0){
-	printf("Requesting from server...\n");
-      }
-    } else {
-      /* Invalid response from server! */
-    }
-
-
+    handle_sub_response(input_buffer, current_socket);
 
     /*
       if(strcmp(client_parsed[0], "@join") == 0) {
@@ -150,6 +96,78 @@ int main(int argc, char **argv) {
 	 } */
   }
 
+     
+}
+
+void handle_sub_response(char *input_buffer, int current_socket){
+  char **client_parsed, **args;
+  
+  if(count_occur(input_buffer, "#") != 2){
+    printf("Received invalid response by server! Check server code!\n");      
+    exit(0);
+  }
+
+  client_parsed = parse_input(input_buffer, "#");
+  args = parse_input(client_parsed[1], "|");
+
+  char type = args[0][0];
+  if(type == 'c'){
+    char *command = args[1];
+
+    // Typical commands
+    if(strcmp("display-invalid", command) == 0){
+      printf("Invalid command! Type @help for help.\n");
+      
+    } else if (strcmp("display-help", command) == 0){
+      int fd = open("help", O_RDONLY);
+      char contents[256];
+      read(fd, contents, sizeof(contents));
+      printf("%s\n", contents);
+      close(fd);
+      
+    } else {
+      printf("TEST 1\n");
+      
+    }
+    
+  } else if (type == 't'){
+    char *sender = args[1];
+    char *text = args[2];
+
+    /* Text */
+    printf("[%s]: [%s]\n", sender, text);
+  } else if (type == 'o'){
+    char *next = args[1];
+
+
+    // *Other* responses from server
+    if(strcmp("chatroom-success", next) == 0){
+      
+      printf("Chatroom successfully created!\n");
+      
+    } else if(strcmp("chatroom-noexist", next) == 0){
+      
+      printf("Chatroom does not exist!\n");
+      
+    } else if(strcmp("chatroom-nametaken", next) == 0){
+      
+      printf("Chatroom w/ input name already exists!\n");
+      
+    } else if(strcmp("requesting", next) == 0){
+      
+      printf("Requesting from server...\n");
+
+      char sub_response[BUFFER_SIZE];
+      read(current_socket, sub_response, sizeof(sub_response));
+
+      // Recursive implementation
+      handle_sub_response(sub_response, current_socket);      
+    }
+    
+  } else {
+    /* Invalid response from server! */
+  }
+
   free(client_parsed);
-  free(args);    
+  free(args); 
 }

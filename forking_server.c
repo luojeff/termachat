@@ -8,6 +8,7 @@ void subprocess(int, char *, char*);
 void listening_server(int, int[2]);
 void mainserver(int[2]);
 void handle_sub_command(char *, char (*)[]);
+void handle_info_command(char *, char (*)[]);
 int handle_main_command(char *, char (*)[], char (*)[]);
 void print_error();
 void intHandler(int);
@@ -159,17 +160,17 @@ void mainserver(int pipe_to_main[2]){
       int n;
 
       // Verify that semaphore is used (before sub writes)
-      if(is_used(sem_id) && (n = read(s_fd, from_sub, sizeof(from_sub))) > 0){
+      if(is_used(sem_id) && (read(s_fd, from_sub, sizeof(from_sub)) > 0)){
 	
 	char to_sub[BUFFER_SIZE];
-	printf("[MAIN %d]: Received {%d} bytes from sub: [%s]\n", getpid(), n, from_sub);
+	printf("[MAIN %d]: Received bytes from sub: [%s]\n", getpid(), from_sub);
 	
 	handle_sub_command(from_sub, &to_sub);
 	
 	// Wait for sub to open in read mode before allowing to write
 	//printf("[MAIN curr status: %d]\n", is_used(sem_id));
 	wait_semaphore(sem_id);
-	printf("[MAIN %d]: Got semaphore resource {%d}!\n", getpid(), sem_id);
+	//printf("[MAIN %d]: Got semaphore resource {%d}!\n", getpid(), sem_id);
 	
 	//close(s_fd);
 	//s_fd = open(fifo_name, O_WRONLY);
@@ -178,10 +179,10 @@ void mainserver(int pipe_to_main[2]){
 	//close(s_fd);
 
 	// Reopen in read mode
-	printf("now status: [%d]\n", get_sem_val(sem_id));
+	//printf("now status: [%d]\n", get_sem_val(sem_id));
 	free_semaphore(sem_id);
-	printf("[MAIN %d]: Freed semaphore resource {%d}!\n", getpid(), sem_id);	
-	printf("now status 2: [%d]\n", get_sem_val(sem_id));
+	//printf("[MAIN %d]: Freed semaphore resource {%d}!\n", getpid(), sem_id);	
+	//printf("now status 2: [%d]\n", get_sem_val(sem_id));
 	
 	
 	//s_fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
@@ -218,25 +219,25 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
     char write_to_fifo[BUFFER_SIZE], read_from_fifo[BUFFER_SIZE];
     
     int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo);
-    write(socket, write_to_client, BUFFER_SIZE);
+    write(socket, write_to_client, sizeof(write_to_client));
 
     // Handle writing to mainserver and receiving response
     if(resp > 0) {
       //fd = open(fifo_name, O_WRONLY);
-      printf("[SUB %d for %s]: FIFO opened in WRONLY mode!\n", getpid(), group_name);
+      //printf("[SUB %d for %s]: FIFO opened in WRONLY mode!\n", getpid(), group_name);
       
       if(sem_id <= 0) {
 	sem_id = get_semaphore(getpid());
-	printf("Accessed and received sem_id={%d}\n", sem_id);	
+	//printf("Accessed and received sem_id={%d}\n", sem_id);	
 	//printf("[STATUS 1 of {%d}]: [%d]\n", sem_id, is_used(sem_id));
       }
 
-      printf("[SUB %d for %s]: Attempting to get resource {%d}\n", getpid(), group_name, sem_id);
+      //printf("[SUB %d for %s]: Attempting to get resource {%d}\n", getpid(), group_name, sem_id);
       //printf("[STATUS 2]: {%d}\n", is_used(sem_id));
       if(is_used(sem_id) == 0)
 	wait_semaphore(sem_id);
       //printf("[STATUS 3]: {%d}\n", is_used(sem_id));
-      printf("[SUB %d for %s]: Got semaphore resource {%d}!\n", getpid(), group_name, sem_id);
+      //printf("[SUB %d for %s]: Got semaphore resource {%d}!\n", getpid(), group_name, sem_id);
       
       write(fd, write_to_fifo, sizeof(write_to_fifo));
       printf("[SUB %d for %s]: Wrote to MAIN [%s]\n", getpid(), group_name, write_to_fifo);
@@ -246,14 +247,17 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
       // Free to allow mainserver to start writing
 
       //fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
-      printf("[SUB %d for %s]: FIFO %d opened in RDONLY mode!\n", getpid(), group_name, fd);       
+      //printf("[SUB %d for %s]: FIFO %d opened in RDONLY mode!\n", getpid(), group_name, fd);       
       free_semaphore(sem_id);
-      printf("[SUB %d for %s]: Freed semaphore resource {%d}\n", getpid(), group_name, sem_id);           
-
-
+      //printf("[SUB %d for %s]: Freed semaphore resource {%d}\n", getpid(), group_name, sem_id);
       
       while(read(fd, read_from_fifo, BUFFER_SIZE) <= 0);
-      printf("[SUB]: Received [%s]\n", read_from_fifo);
+      printf("[SUB %d for %s]: Received [%s]\n", getpid(), group_name, read_from_fifo);
+
+      // Process read_from_fifo
+      handle_info_command(read_from_fifo, &write_to_client);
+      write(socket, write_to_client, sizeof(write_to_client));
+      
       
       //while((n = read(fd, read_from_fifo, BUFFER_SIZE)) <= 0);
       //printf("[SUB %d for %s]: Received {%d} bytes [%s] from MAIN\n", getpid(), group_name, n, read_from_fifo);
@@ -303,12 +307,26 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
 
 void handle_sub_command(char *s, char (*to_sub)[]){
   if(strcmp(s, "sub-wants-list") == 0){
-    char to_send[] = "test-1";
+
+    // To be given to client to parse
+    char to_send[] = "#t|SERVER|\nAvailable chatrooms:\nchatroom1:user1, user2\nchatroom2:user3, user4#";
     strcpy(*to_sub, to_send);
+    
   } else {
-    char to_send[] = "invalid";
+    
+    char to_send[] = "invalid-sub-request";
     strcpy(*to_sub, to_send);
+    
   }  
+}
+
+
+/* 
+Handles information sent back from mainserver to be
+sent back to client 
+*/
+void handle_info_command(char *s, char (*to_client)[]){
+  strcpy(*to_client, s);
 }
 
 
