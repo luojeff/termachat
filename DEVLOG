@@ -35,13 +35,27 @@ LESSONS LEARNED
     \____/_/ \_____\/ \___/_(   \_____\/ \_____\/ \_____\/ 
 ==============================================================
 
-<yyyy-mm-dd>
+2017-12-23
 --------------------------------------------------------------
-Gian ::
+Gian & Jeffrey :: Work on design plan and README
+==============================================================
 
-Jeffrey ::
-2018-01-09 - Added networking template and code to create basic server interaction
-2018-01-15 - Added client signal handling, and ability to create new groupchat, essentially by setting up a new server
+2017-12-27
+--------------------------------------------------------------
+Gian & Jeffrey :: Finish design plan
+==============================================================
 
-Daniel :: 
+2018-01-09
+--------------------------------------------------------------
+Jeffrey :: Added networking template and code to create basic server interaction
+==============================================================
+
+2018-01-15
+--------------------------------------------------------------
+Jeffrey :: Added client signal handling, and ability to create new groupchat, essentially by setting up a new server
+==============================================================
+
+2018-01-24
+--------------------------------------------------------------
+Gian :: Fix makefile bug
 ==============================================================
