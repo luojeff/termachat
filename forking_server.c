@@ -134,23 +134,15 @@ void mainserver(int pipe_to_main[2]){
     // Handle new client setup stuff
     if(read(pipe_to_main[READ], fifo_name, 20) > 0) {
     
-      if((fd = open(fifo_name, O_RDONLY | O_NONBLOCK)) > 0) {	
+      if((fd = open(fifo_name, O_RDWR | O_NONBLOCK)) > 0) {	
 	printf("[MAIN %d]: Connected to fifo [%s]\n", getpid(), fifo_name);
 	server_fds[count] = fd;
-
-	/*
-	if(sem_id <= 0) {
-	  sem_id = create_semaphore(SEM_KEY);
-	  printf("[MAIN %d]: Created semaphore!\n", getpid());
-	}
-	*/
 
 	int sub_pid = 0;
 	while(read(pipe_to_main[READ], &sub_pid, 4) <= 0);
 	
 	sem_ids[count] = create_semaphore(sub_pid);
 	printf("[MAIN %d]: Semaphore {sem_id: %d} created!\n", getpid(), sem_ids[count]);
-	printf("[MAIN %d]: Semaphore {sem_id: %d} status: [%d]\n", getpid(), sem_ids[count], is_used(sem_ids[count]));
 	count++;
       } else
 	printf("[MAIN %d]: Failed to connect to fifo [%s]\n", getpid(), fifo_name);
@@ -158,7 +150,8 @@ void mainserver(int pipe_to_main[2]){
     
     int s_fd;
     
-    int i;    
+    int i;
+    
     for(i=0; i<count; i++){
       char from_sub[BUFFER_SIZE];
       s_fd = server_fds[i];
@@ -167,28 +160,33 @@ void mainserver(int pipe_to_main[2]){
 
       // Verify that semaphore is used (before sub writes)
       if(is_used(sem_id) && (n = read(s_fd, from_sub, sizeof(from_sub))) > 0){
-	char to_sub[BUFFER_SIZE];
-	printf("[MAIN %d]: Received amt [%d] from sub: [%s]\n", getpid(), n, from_sub);
 	
-	handle_sub_command(from_sub, &to_sub);	
+	char to_sub[BUFFER_SIZE];
+	printf("[MAIN %d]: Received {%d} bytes from sub: [%s]\n", getpid(), n, from_sub);
+	
+	handle_sub_command(from_sub, &to_sub);
 	
 	// Wait for sub to open in read mode before allowing to write
 	//printf("[MAIN curr status: %d]\n", is_used(sem_id));
 	wait_semaphore(sem_id);
 	printf("[MAIN %d]: Got semaphore resource {%d}!\n", getpid(), sem_id);
 	
-	close(s_fd);
-	s_fd = open(fifo_name, O_WRONLY);
+	//close(s_fd);
+	//s_fd = open(fifo_name, O_WRONLY);
 	write(s_fd, to_sub, sizeof(to_sub));
 	printf("[MAIN %d]: Wrote back to sub [%s]\n", getpid(), to_sub);
-	close(s_fd);
+	//close(s_fd);
 
 	// Reopen in read mode
+	printf("now status: [%d]\n", get_sem_val(sem_id));
 	free_semaphore(sem_id);
-	s_fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
+	printf("[MAIN %d]: Freed semaphore resource {%d}!\n", getpid(), sem_id);	
+	printf("now status 2: [%d]\n", get_sem_val(sem_id));
+	
+	
+	//s_fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
       }
     }
-
     
     
     // end of while
@@ -207,9 +205,9 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
   char buffer[BUFFER_SIZE];
   int fd, sem_id = 0, sem_id2 = 0;
   
-  if((fd = open(fifo_name, O_WRONLY)) > 0) {    
+  if((fd = open(fifo_name, O_RDWR | O_NONBLOCK)) > 0) {    
     printf("[SUB %d for %s]: Connected to fifo [%s]\n", getpid(), group_name, fifo_name);
-    close(fd);
+    //close(fd);
   } else
     printf("[SUB %d for %s]: Error creating FD!\n", getpid(), group_name);
 
@@ -224,7 +222,7 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
 
     // Handle writing to mainserver and receiving response
     if(resp > 0) {
-      fd = open(fifo_name, O_WRONLY);
+      //fd = open(fifo_name, O_WRONLY);
       printf("[SUB %d for %s]: FIFO opened in WRONLY mode!\n", getpid(), group_name);
       
       if(sem_id <= 0) {
@@ -242,25 +240,30 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
       
       write(fd, write_to_fifo, sizeof(write_to_fifo));
       printf("[SUB %d for %s]: Wrote to MAIN [%s]\n", getpid(), group_name, write_to_fifo);
-      close(fd);
+      //close(fd);
       
       // Open in read mode
       // Free to allow mainserver to start writing
+
+      //fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
+      printf("[SUB %d for %s]: FIFO %d opened in RDONLY mode!\n", getpid(), group_name, fd);       
       free_semaphore(sem_id);
-      fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
-      printf("[SUB %d for %s]: FIFO opened in RDONLY mode!\n", getpid(), group_name);
+      printf("[SUB %d for %s]: Freed semaphore resource {%d}\n", getpid(), group_name, sem_id);           
+
 
       
-      printf("[SUB %d for %s]: Freed semaphore resource {%d}\n", getpid(), group_name, sem_id);
-
-      int n;
-      while((n = read(fd, read_from_fifo, BUFFER_SIZE)) <= 0);
-      printf("[SUB %d for %s]: Received amt{%d} [%s] from MAIN\n", getpid(), group_name, n, read_from_fifo);
+      while(read(fd, read_from_fifo, BUFFER_SIZE) <= 0);
+      printf("[SUB]: Received [%s]\n", read_from_fifo);
+      
+      //while((n = read(fd, read_from_fifo, BUFFER_SIZE)) <= 0);
+      //printf("[SUB %d for %s]: Received {%d} bytes [%s] from MAIN\n", getpid(), group_name, n, read_from_fifo);
 
       // Reopen in write mode
-      wait_semaphore(sem_id);
-      close(fd);
-      //fd = open(fifo_name, O_WRONLY);
+      //wait_semaphore(sem_id);
+      //printf("[SUB %d for %s]: Got semaphore resource again!\n", getpid(), group_name);
+      
+      //close(fd);
+      //fd = open(fifo_name, O_WRONLY);  
     }
   }
   
