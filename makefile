@@ -29,12 +29,14 @@ helper.o: helper.c helper.h $(HEADERS)
 semaphore.o: semaphore.c semaphore.h $(HEADERS)
 	@$(CC) -c $<
 
-
 parser.o: parser.c parser.h $(HEADERS)
 	@$(CC) -c $<
 
 clean:
 	@rm *.o
+
+
+
 
 
 

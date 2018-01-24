@@ -7,6 +7,7 @@
 void subprocess(int, char *, char*);
 void listening_server(int, int[2]);
 void mainserver(int[2]);
+void handle_sub_command(char *, char (*)[]);
 int handle_main_command(char *, char (*)[], char (*)[]);
 void print_error();
 void intHandler(int);
@@ -14,10 +15,10 @@ void intHandler(int);
 
 static volatile int cont = 1;
 
-int chatrooms_added = 0;
-struct chatroom existing_chatrooms[MAX_NUM_CHATROOMS];
-
 int GPORT = PORT;
+
+int chatrooms_added = 0;
+struct chatroom existing_chatrooms[MAX_NUM_CHATROOMS];  
 
 // KEPT FOR TESTING PURPOSES
 void _subprocess(int socket, char *group_name) {  
@@ -46,9 +47,11 @@ static void sighandler(int signo){
   }
 }
 
+
 void intHandler(int sig){
   cont = 0;
 }
+
 
 int main() {
   struct sigaction act;
@@ -73,13 +76,9 @@ int main() {
   
   int f = fork();
   if(f == 0) {
-    
-    /* Child */
     mainserver(pipe_to_main);
-    exit(0);
   } else if (f > 0) {
     listening_server(global_listen_socket, pipe_to_main);
-    exit(0);
   } else {
     print_error();
   }
@@ -88,7 +87,6 @@ int main() {
 
 /* Listens for incoming connections from other clients */
 void listening_server(int global_listen_socket, int pipe_to_main[2]){
-  printf("LISTENSERVER PID: %d\n", getpid());
   int global_client_socket;
 
   close(pipe_to_main[0]);
@@ -108,12 +106,14 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
     printf("[MAIN]: Fifo created!\n");
     
     //fork off new process to talk to client and have it connect to the new FIFO
-    if(fork() == 0) {
+    int child_pid = fork();
+    if(child_pid == 0) {
       subprocess(global_client_socket, "pub-test", fifo_name);
       exit(0);
     }
     
     write(pipe_to_main[WRITE], fifo_name, 20);
+    write(pipe_to_main[WRITE], &child_pid, sizeof(child_pid));
   }
 
   exit(0);
@@ -121,12 +121,9 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
 
 
 void mainserver(int pipe_to_main[2]){
-  
-  
-  printf("MAINSERVER PID: %d\n", getpid());
   close(pipe_to_main[WRITE]);
   
-  int fd, sem_id = 0;
+  int fd;
   int count = 0;
   int server_fds[MAX_CLIENTS];
   int sem_ids[MAX_CLIENTS];
@@ -139,61 +136,81 @@ void mainserver(int pipe_to_main[2]){
     
       if((fd = open(fifo_name, O_RDONLY | O_NONBLOCK)) > 0) {	
 	printf("[MAIN %d]: Connected to fifo [%s]\n", getpid(), fifo_name);
-	server_fds[count++] = fd;
-	sem_id = create_semaphore(SEM_KEY);
+	server_fds[count] = fd;
+
+	/*
+	if(sem_id <= 0) {
+	  sem_id = create_semaphore(SEM_KEY);
+	  printf("[MAIN %d]: Created semaphore!\n", getpid());
+	}
+	*/
+
+	int sub_pid = 0;
+	while(read(pipe_to_main[READ], &sub_pid, 4) <= 0);
+	
+	sem_ids[count] = create_semaphore(sub_pid);
+	printf("[MAIN %d]: Semaphore {sem_id: %d} created!\n", getpid(), sem_ids[count]);
+	printf("[MAIN %d]: Semaphore {sem_id: %d} status: [%d]\n", getpid(), sem_ids[count], is_used(sem_ids[count]));
+	count++;
       } else
 	printf("[MAIN %d]: Failed to connect to fifo [%s]\n", getpid(), fifo_name);
     }
-
-    char from_sub[BUFFER_SIZE]; 
-    int s_fd = server_fds[0];    
-    int i;
     
-    for(i=0; i<count; i++){      
-      if(read(s_fd, from_sub, sizeof(from_sub)) > 0){
-	
-	// Process what subserver sends
-	if(strcmp(from_sub, "sub-wants-list") == 0) {
-	  
-	  printf("[MAIN happens!]\n");
-	  close(s_fd);
+    int s_fd;
+    
+    int i;    
+    for(i=0; i<count; i++){
+      char from_sub[BUFFER_SIZE];
+      s_fd = server_fds[i];
+      int sem_id = sem_ids[i];
+      int n;
 
-	  free_semaphore(sem_id);
-	  
-	  // Open in write mode
-	  s_fd = open(fifo_name, O_WRONLY);	
-	  write(s_fd, "test-1", 10);
-	  printf("[MAIN has written!]\n");
-	  close(s_fd);	  
+      // Verify that semaphore is used (before sub writes)
+      if(is_used(sem_id) && (n = read(s_fd, from_sub, sizeof(from_sub))) > 0){
+	char to_sub[BUFFER_SIZE];
+	printf("[MAIN %d]: Received amt [%d] from sub: [%s]\n", getpid(), n, from_sub);
 	
-	  // Reopen in read mode
-	  s_fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
+	handle_sub_command(from_sub, &to_sub);	
+	
+	// Wait for sub to open in read mode before allowing to write
+	//printf("[MAIN curr status: %d]\n", is_used(sem_id));
+	wait_semaphore(sem_id);
+	printf("[MAIN %d]: Got semaphore resource {%d}!\n", getpid(), sem_id);
+	
+	close(s_fd);
+	s_fd = open(fifo_name, O_WRONLY);
+	write(s_fd, to_sub, sizeof(to_sub));
+	printf("[MAIN %d]: Wrote back to sub [%s]\n", getpid(), to_sub);
+	close(s_fd);
 
-	  
-	}
+	// Reopen in read mode
+	free_semaphore(sem_id);
+	s_fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
       }
     }
+
+    
     
     // end of while
   }
 
-
-  // Remove all semaphores !!!
-  if(sem_id != 0) {
-    remove_semaphore(sem_id);
-    sem_id = 0;
+  int j;
+  for(j=0; j<count; j++){
+    remove_semaphore(&sem_ids[j]);
   }
 
   exit(0);
 }
 
+
 void subprocess(int socket, char *group_name, char* fifo_name) {
   char buffer[BUFFER_SIZE];
-  int fd;
+  int fd, sem_id = 0, sem_id2 = 0;
   
-  if((fd = open(fifo_name, O_WRONLY)) > 0)
+  if((fd = open(fifo_name, O_WRONLY)) > 0) {    
     printf("[SUB %d for %s]: Connected to fifo [%s]\n", getpid(), group_name, fifo_name);
-  else
+    close(fd);
+  } else
     printf("[SUB %d for %s]: Error creating FD!\n", getpid(), group_name);
 
   while ((read(socket, buffer, sizeof(buffer)) > 0)) {
@@ -207,28 +224,43 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
 
     // Handle writing to mainserver and receiving response
     if(resp > 0) {
-      write(fd, write_to_fifo, BUFFER_SIZE);
+      fd = open(fifo_name, O_WRONLY);
+      printf("[SUB %d for %s]: FIFO opened in WRONLY mode!\n", getpid(), group_name);
+      
+      if(sem_id <= 0) {
+	sem_id = get_semaphore(getpid());
+	printf("Accessed and received sem_id={%d}\n", sem_id);	
+	//printf("[STATUS 1 of {%d}]: [%d]\n", sem_id, is_used(sem_id));
+      }
+
+      printf("[SUB %d for %s]: Attempting to get resource {%d}\n", getpid(), group_name, sem_id);
+      //printf("[STATUS 2]: {%d}\n", is_used(sem_id));
+      if(is_used(sem_id) == 0)
+	wait_semaphore(sem_id);
+      //printf("[STATUS 3]: {%d}\n", is_used(sem_id));
+      printf("[SUB %d for %s]: Got semaphore resource {%d}!\n", getpid(), group_name, sem_id);
+      
+      write(fd, write_to_fifo, sizeof(write_to_fifo));
       printf("[SUB %d for %s]: Wrote to MAIN [%s]\n", getpid(), group_name, write_to_fifo);
       close(fd);
-
-      printf("[SUB %d for %s]: Getting semaphore...\n", getpid(), group_name);
-      int sem_id = get_semaphore(SEM_KEY);
-      printf("[SUB %d for %s]: Attempting to get resource... [%d]\n", getpid(), group_name, sem_id);
-      wait_semaphore(sem_id);
-      printf("[SUB %d for %s]: Got semaphore resource!\n", getpid(), group_name);
       
-      // Open in read mode 
-      fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
-      while(read(fd, read_from_fifo, BUFFER_SIZE) <= 0);
-      printf("[SUB %d for %s]: Received [%s] from MAIN\n", getpid(), group_name, read_from_fifo);
-
-      // Free semaphore
+      // Open in read mode
+      // Free to allow mainserver to start writing
       free_semaphore(sem_id);
+      fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
+      printf("[SUB %d for %s]: FIFO opened in RDONLY mode!\n", getpid(), group_name);
+
       
-      close(fd);
+      printf("[SUB %d for %s]: Freed semaphore resource {%d}\n", getpid(), group_name, sem_id);
+
+      int n;
+      while((n = read(fd, read_from_fifo, BUFFER_SIZE)) <= 0);
+      printf("[SUB %d for %s]: Received amt{%d} [%s] from MAIN\n", getpid(), group_name, n, read_from_fifo);
 
       // Reopen in write mode
-      fd = open(fifo_name, O_WRONLY);
+      wait_semaphore(sem_id);
+      close(fd);
+      //fd = open(fifo_name, O_WRONLY);
     }
   }
   
@@ -266,10 +298,21 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
 
 
 
+void handle_sub_command(char *s, char (*to_sub)[]){
+  if(strcmp(s, "sub-wants-list") == 0){
+    char to_send[] = "test-1";
+    strcpy(*to_sub, to_send);
+  } else {
+    char to_send[] = "invalid";
+    strcpy(*to_sub, to_send);
+  }  
+}
+
+
 /* 
    s: string with command arguments that need to be handled
    fifo_fd: descriptor of fifo between MAIN and SUB
-   to_client: pointer to array that will be sent back to client. Set accordingly by
+    to_client: pointer to array that will be sent back to client. Set accordingly by
    what the client inputs.
 
    RETURNS 1 IF THE SUBPROCESS NEEDS TO TALK TO THE MAINSERVER IN ADDITION TO THE CLIENT
