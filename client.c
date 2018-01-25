@@ -163,12 +163,9 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
 
 
     // *Other* responses from server
-    if(strcmp("chatroom-noexist", next) == 0){
-      
-      printf("Chatroom does not exist!\n");
-      
-    } else if(strcmp("chatroom-nametaken", next) == 0){
-      
+    if(strcmp("chatroom-noexist", next) == 0){      
+      printf("Chatroom does not exist!\n");      
+    } else if(strcmp("chatroom-nametaken", next) == 0){      
       printf("Chatroom w/ input name already exists!\n");
       
       /*    } else if(strcmp("requesting", next) == 0){
@@ -182,22 +179,17 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
       handle_sub_response(sub_response, current_socket);
       */
     } else if(strcmp("chatroom-created", next) == 0) {
-
       printf("Chatroom created!\n");
-
     } else if(strcmp("client-noexist", next) == 0) {
-
       printf("Client Process does not exist!\n");
-
     } else if(strcmp("already-joined-other-chatroom", next) == 0) {
-
       printf("Already joined other room!\n");
     } else if(strcmp("response", next) == 0) {
-
       printf("{Replace w/ chatroom chat stuff...}\n");
     } else if(strcmp("written", next) == 0){
-
       printf("Wrote to chat!\n");
+    } else if(strcmp("left", next) == 0){
+      printf("Left chatroom!\n");
     } else {
       printf("No handling case for client -- check server code!\n");
     }

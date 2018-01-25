@@ -9,6 +9,9 @@
 @join <chatroom_name>
     Join chatroom named chatroom_name
 
+@leave
+    Leave the chatroom
+
 @delete <chatroom_name>
     Deletes chatroom named chatroom_name
 

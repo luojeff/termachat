@@ -510,7 +510,12 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *c
       repeat = 0;
       return 1;
       
-    }  else if (strcmp(parsed[0], "@r") == 0) {
+    } else if (strcmp(parsed[0], "@leave") == 0) {
+      strcpy(*to_client, "#o|left#");
+      sprintf(*to_fifo, "sub-wants-leave|%d", getpid());
+      
+      return 0;
+    } else if (strcmp(parsed[0], "@r") == 0) {
 
       char selected_chatroom[] = "cr1";
 
