@@ -2,7 +2,7 @@
 #include "helper.h"
 #include "parser.h"
 
-void handle_sub_response(char *, int);
+void handle_sub_response(char *, int, char (*)[]);
 
 static void client_sighandler(int signo){
   switch(signo) {
@@ -22,10 +22,7 @@ int main(int argc, char **argv) {
   signal(SIGINT, client_sighandler);
   signal(SIGUSR1, client_sighandler);
 
-  int server_socket;
-
-  /* Current socket USER is on */
-  int current_socket;
+  int server_socket, current_socket;
 
   /* Current location of USER */
   int MAX_GROUP_NAME_SIZE = 32;
@@ -51,10 +48,17 @@ int main(int argc, char **argv) {
 
   current_socket = server_socket;
 
-  char input_buffer[BUFFER_SIZE];
+  char user_name[MAX_USERNAME_LENGTH];
+  printf("[termachat client]: Enter a username: ");
+  fgets(user_name, sizeof(user_name), stdin);
+  *strchr(user_name, '\n') = 0;
 
+  write(current_socket, user_name, sizeof(user_name));
+
+  char input_buffer[BUFFER_SIZE];
   while (1) {
-    printf("[YOU @ %s]: ", current_group);
+    
+    printf("[%s @ %s]: ", user_name, current_group);
     fgets(input_buffer, sizeof(input_buffer), stdin);
     *strchr(input_buffer, '\n') = 0;
 
@@ -69,7 +73,7 @@ int main(int argc, char **argv) {
       read(current_socket, input_buffer, sizeof(input_buffer));
     }
     
-    handle_sub_response(input_buffer, current_socket);
+    handle_sub_response(input_buffer, current_socket, &current_group);
 
     /*
       if(strcmp(client_parsed[0], "@join") == 0) {
@@ -104,7 +108,7 @@ int main(int argc, char **argv) {
      
 }
 
-void handle_sub_response(char *input_buffer, int current_socket){
+void handle_sub_response(char *input_buffer, int current_socket, char (*current_group)[]){
   char **client_parsed, **args;
   
   if(count_occur(input_buffer, "#") != 2){
@@ -132,6 +136,8 @@ void handle_sub_response(char *input_buffer, int current_socket){
     
     } else if (strcmp("join", command) == 0) {
       printf("Joined the room: %s\n", args[2]);
+
+      strcpy(*current_group, args[2]);
   
     } else if(strcmp("exit", command) == 0){
       printf("Ended subprocess. Exiting...\n");
@@ -155,11 +161,7 @@ void handle_sub_response(char *input_buffer, int current_socket){
 
 
     // *Other* responses from server
-    if(strcmp("chatroom-success", next) == 0){
-      
-      printf("Chatroom successfully created!\n");
-      
-    } else if(strcmp("chatroom-noexist", next) == 0){
+    if(strcmp("chatroom-noexist", next) == 0){
       
       printf("Chatroom does not exist!\n");
       
@@ -179,7 +181,7 @@ void handle_sub_response(char *input_buffer, int current_socket){
       */
     } else if(strcmp("chatroom-created", next) == 0) {
 
-      printf("Chatroom Created\n");
+      printf("Chatroom created!\n");
 
     } else if(strcmp("client-noexist", next) == 0) {
 

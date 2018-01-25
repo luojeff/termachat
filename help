@@ -1,22 +1,10 @@
 ---- termachat help page ----
 
-@help
-    Display this page
-
 @list
     List all existing chatrooms
 
-@current
-    Get notified of which chatroom you're in currently
-
 @create <chatroom_name>
     Create chatroom named chatroom_name
-
-@w <text>
-    Write text to your current chatroom
-
-@r
-    Read from your current chatroom
 
 @join <chatroom_name>
     Join chatroom named chatroom_name
@@ -24,8 +12,20 @@
 @delete <chatroom_name>
     Deletes chatroom named chatroom_name
 
+@current
+    Get notified of which chatroom you're in currently
+
+@w <text>
+    Write text to your current chatroom
+
+@r
+    Read from your current chatroom
+
 @pm <user_name>
     Private messages user named user_name
 
 @exit
     End the subprocess and exit the client program
+
+@help
+    Display this page

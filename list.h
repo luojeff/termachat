@@ -1,9 +1,16 @@
+#ifndef LIST_H
+#define LIST_H
+
+#include "forking_server.h"
+
 struct node {
-  int i;
+  struct client c;
   struct node *next;
 };
 
 char *print_list(struct node *);
-struct node *insert_front(struct node *, int);
-struct node *delete_member(struct node *, int);
+struct node *insert_front(struct node *, struct client);
+struct node *delete_member(struct node *, struct client);
 struct node *free_list(struct node *);
+
+#endif

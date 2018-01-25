@@ -11,7 +11,7 @@ void listening_server(int, int[2]);
 void mainserver(int[2]);
 void handle_sub_command(char *, char (*)[]);
 void handle_info_command(char *, char (*)[]);
-int handle_main_command(char *, char (*)[], char (*)[]);
+int handle_main_command(char *, char (*)[], char (*)[], char *);
 void print_error();
 void intHandler(int);
 int find_client_index(int);
@@ -127,9 +127,10 @@ void mainserver(int pipe_to_main[2]){
 
 	printf("DEBUG:: Add a new client into table: %d\n", sub_pid);
         struct client new_client;
-        new_client.client_pid = sub_pid;
+        new_client.client_sub_pid = sub_pid;
         new_client.chatroom_index = -1;
         new_client.status = 1;
+	new_client.user_name = (char*)malloc(MAX_USERNAME_LENGTH*sizeof(char) + 1);
         clients[num_clients++] = new_client;
       } else
 	printf("[MAIN %d]: Failed to connect to fifo [%s]\n", getpid(), fifo_name);
@@ -172,7 +173,7 @@ void mainserver(int pipe_to_main[2]){
 
 
 void subprocess(int socket, char *group_name, char* fifo_name) {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE], client_name[MAX_USERNAME_LENGTH];
   int fd, sem_id = 0;
 
   if((fd = open(fifo_name, O_RDWR | O_NONBLOCK)) > 0) {    
@@ -182,13 +183,15 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
   } else
     printf("[SUB %d for %s]: Error creating FD!\n", getpid(), group_name);
 
+  read(socket, client_name, sizeof(client_name));
+
   while (repeat && ((read(socket, buffer, sizeof(buffer)) > 0))) {
     printf("[SUB %d for %s]: Received [%s]\n", getpid(), group_name, buffer);
     
     char write_to_client[BUFFER_SIZE];
     char write_to_fifo[BUFFER_SIZE], read_from_fifo[BUFFER_SIZE];
     
-    int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo);
+    int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo, client_name);
     write(socket, write_to_client, sizeof(write_to_client));
 
 
@@ -287,9 +290,7 @@ void handle_sub_command(char *s, char (*to_sub)[]){
     }
     
   } else if (num_phrases == 2) {
-    if (strcmp(parsed[0], "create") == 0) {
-      
-      
+    if (strcmp(parsed[0], "create") == 0) {      
 
       // Check to see if chatroom name is taken      
       int i;
@@ -325,15 +326,16 @@ void handle_sub_command(char *s, char (*to_sub)[]){
     } else if (strcmp(parsed[0], "exit") == 0) {
       
       // Quit chat room
-      int client_pid = atoi(parsed[1]);
-      int client_index = find_client_index(client_pid);
+      int client_sub_pid = atoi(parsed[1]);
+      int client_index = find_client_index(client_sub_pid);
       
       if (client_index > -1) {
         int chatroom_index = clients[client_index].chatroom_index;
+	struct client cl = clients[client_index];
 	
 	//printf("DEBUG:: chatroom_index = %d\n", clients[client_index].chatroom_index);
         if (chatroom_index > -1) {
-          existing_chatrooms[chatroom_index].members = delete_member(existing_chatrooms[chatroom_index].members, client_pid);
+          existing_chatrooms[chatroom_index].members = delete_member(existing_chatrooms[chatroom_index].members, cl);
 	  existing_chatrooms[chatroom_index].num_members--;
 	  clients[client_index].chatroom_index = -1;
 	  clients[client_index].status = 0;
@@ -346,7 +348,7 @@ void handle_sub_command(char *s, char (*to_sub)[]){
       strcpy(*to_sub, invalid_request);
     }
     
-  } else if (num_phrases == 3) {
+  } else if (num_phrases >= 3) {
 
     if(strcmp(parsed[0], "write") == 0){
 
@@ -358,8 +360,10 @@ void handle_sub_command(char *s, char (*to_sub)[]){
     } else if (strcmp(parsed[0], "join") == 0) {
       
       // Join chat room
-      int client_pid = atoi(parsed[2]);
-      int client_index = find_client_index(client_pid);
+      int client_sub_pid = atoi(parsed[2]);
+      char *client_name = parsed[3];
+      int client_index = find_client_index(client_sub_pid);
+      
       if (client_index > -1) {
 	if (clients[client_index].chatroom_index == -1) {
 
@@ -367,12 +371,18 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 	  int pass = 0;
           for(i=0; i<chatrooms_added; i++){
 	    if(strcmp(existing_chatrooms[i].name, parsed[1]) == 0) {
+
+	      struct client cl = clients[client_index];
 	      
 	      // Add into chatroom member
-	      existing_chatrooms[i].members = insert_front(existing_chatrooms[i].members, client_pid);
+	      existing_chatrooms[i].members = insert_front(existing_chatrooms[i].members, cl);
 	      existing_chatrooms[i].num_members ++;
 	      clients[client_index].chatroom_index = i;
 	      clients[client_index].status = 2;
+	      
+	      clients[client_index].user_name = realloc(clients[client_index].user_name, strlen(client_name)*sizeof(char)+1);
+	      strcpy(clients[client_index].user_name, client_name);
+	      //printf("Did this! {%s}\n", clients[client_index].user_name);
 
 	      sprintf(*to_sub, "#c|join|%s#", parsed[1]);
 	      pass = 1;
@@ -399,11 +409,11 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 }
 
 
-int find_client_index(int client_pid) {
+int find_client_index(int client_sub_pid) {
   int client_index = -1;
   int i;
   for (i=0; i<num_clients; i++) {
-    if(clients[i].client_pid == client_pid && clients[i].status > 0) {
+    if(clients[i].client_sub_pid == client_sub_pid && clients[i].status > 0) {
       client_index = i;
       break;
     }
@@ -413,15 +423,15 @@ int find_client_index(int client_pid) {
 
 
 char *print_chatrooms() {
+  
   char *s = (char *)malloc(200 * sizeof(char));
   int i;
   for(i=0; i<chatrooms_added;i++) {
     struct chatroom chatroom = existing_chatrooms[i];
     sprintf(s, "%s%s: ", s, chatroom.name);
-    //user1, user2\nchatroom2:user3, user4");
-    if (chatroom.num_members > 0) {
-      sprintf(s, "%s%s", s, print_list(chatroom.members));
-    }
+    
+    if (chatroom.num_members > 0)
+      sprintf(s, "%s%s", s, print_list(chatroom.members));    
     sprintf(s, "%s\n", s);
   }
   return s;
@@ -447,7 +457,7 @@ void handle_info_command(char *s, char (*to_client)[]){
    RETURNS 0 IF THE SUBPROCESS ONLY NEEDS TO TALK TO CLIENT
 
 */
-int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[]) {
+int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *client_name) {
   int num_phrases = get_num_phrases(s, ' '); // don't move this line
   char **parsed = parse_input(s, " ");
 
@@ -525,7 +535,7 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[]) {
       //char pass = 0;
       //cr_name = parsed[1];
       strcpy(*to_client, "wait");
-      sprintf(*to_fifo, "join|%s|%d", parsed[1], getpid());
+      sprintf(*to_fifo, "join|%s|%d|%s", parsed[1], getpid(), client_name);
       
       /*int i;
       for(i=0; i<sizeof(existing_chatrooms)/sizeof(existing_chatrooms[0]); i++){
