@@ -1,5 +1,7 @@
+---- termachat help page ----
+
 @help
-    Displays this page
+    Display this page
 
 @list
     List all existing chatrooms

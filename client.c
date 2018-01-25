@@ -63,7 +63,11 @@ int main(int argc, char **argv) {
 
     write(current_socket, input_buffer, sizeof(input_buffer));
     read(current_socket, input_buffer, sizeof(input_buffer));
- 
+
+    //printf("DEBUG:: Just received: %s:\n", input_buffer);
+    if (strcmp(input_buffer, "wait") == 0) {
+      read(current_socket, input_buffer, sizeof(input_buffer));
+    }
     handle_sub_response(input_buffer, current_socket);
 
     /*
@@ -120,11 +124,14 @@ void handle_sub_response(char *input_buffer, int current_socket){
       
     } else if (strcmp("display-help", command) == 0){
       int fd = open("help", O_RDONLY);
-      char contents[256];
+      char contents[512];
       read(fd, contents, sizeof(contents));
       printf("%s\n", contents);
       close(fd);
-      
+    
+    } else if (strcmp("join", command) == 0) {
+      printf("Joined the room: %s\n", args[2]);
+  
     } else if(strcmp("exit", command) == 0){
       printf("Ended subprocess. Exiting...\n");
       exit(0);
@@ -159,7 +166,7 @@ void handle_sub_response(char *input_buffer, int current_socket){
       
       printf("Chatroom w/ input name already exists!\n");
       
-    } else if(strcmp("requesting", next) == 0){
+      /*    } else if(strcmp("requesting", next) == 0){
       
       printf("Requesting from server...\n");
 
@@ -167,7 +174,19 @@ void handle_sub_response(char *input_buffer, int current_socket){
       read(current_socket, sub_response, sizeof(sub_response));
 
       // Recursive implementation
-      handle_sub_response(sub_response, current_socket);      
+      handle_sub_response(sub_response, current_socket);
+      */
+    } else if(strcmp("chatroom-created", next) == 0) {
+
+      printf("Chatroom Created\n");
+
+    } else if(strcmp("client-noexist", next) == 0) {
+
+      printf("Client Process does not exist!\n");
+
+    } else if(strcmp("already-joined-other-chatroom", next) == 0) {
+
+      printf("Already joined other room!\n");
     } else {
       printf("No handling case for client -- check server code!\n");
     }

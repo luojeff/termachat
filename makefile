@@ -1,7 +1,7 @@
 CC = gcc
-HEADERS = networking.h helper.h parser.h semaphore.h
+HEADERS = list.h networking.h helper.h parser.h semaphore.h forking_server.h
 
-SERV_OBJS = forking_server.o parser.o helper.o networking.o semaphore.o
+SERV_OBJS = list.o forking_server.o parser.o helper.o networking.o semaphore.o
 CLIENT_OBJS = client.o helper.o networking.o parser.o
 SERVER = server
 CLIENT = client
@@ -13,6 +13,9 @@ fserver: $(SERV_OBJS)
 
 client: $(OBJS) $(CLIENT_OBJS)
 	@$(CC) -o $(CLIENT) $(CLIENT_OBJS)
+
+list.o: list.c $(HEADERS)
+	@$(CC) -c $<
 
 client.o: client.c $(HEADERS)
 	@$(CC) -c $<
