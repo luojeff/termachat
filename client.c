@@ -1,10 +1,12 @@
+#define _GNU_SOURCE
 #include "networking.h"
 #include "helper.h"
 #include "parser.h"
 
 void handle_sub_response(char *, int, char (*)[]);
-int handle_user_input(int input, int socket, char *input_buffer);
-void receive_mesage(int socket, char *outside_buffer);
+int handle_user_input(int, int, char *);
+int receive_message(int, char *);
+
 
 static void client_sighandler(int signo){
   switch(signo) {
@@ -17,6 +19,7 @@ static void client_sighandler(int signo){
     break;
   }
 }
+
 
 int main(int argc, char **argv) {
 

@@ -2,10 +2,12 @@
 A chatroom that runs purely in the terminal. Create a chatroom over intranet and connect multiple clients!
 
 ### Features
-
++ Create chatrooms and have multiple users join!
++ Create a terminal username
++ Communicate within only the chatroom
++ List out chatrooms and their members
 
 ### In development
-
 
 ### How to compile
 
@@ -26,16 +28,17 @@ A chatroom that runs purely in the terminal. Create a chatroom over intranet and
     ```$ ./client```
 
    By default, the client will use the localhost address *(127.0.0.1)* if no other address is provided
-   
+
+### Design implementations
+
++ Semaphores to control access to subprocess and block race conditions
++ Linked list structure to store information about chatrooms and their clients
    
 ### How to use
 
-Once in the client, descriptions for supported commands can be obtained by typing ```@help```
-
+Full descriptions for supported commands can be obtained by typing ```@help```
 
 ### Bugs
-
-
 
 ### Members
 Jeffrey Luo<br>

@@ -6,27 +6,14 @@
 #include "semaphore.h"
 #include "forking_server.h"
 
-void subprocess(int, char *, char*);
-void listening_server(int, int[2]);
-void mainserver(int[2]);
-void handle_sub_command(char *, char (*)[]);
-void handle_info_command(char *, char (*)[]);
-int handle_main_command(char *, char (*)[], char (*)[], char *);
-void print_error();
-void intHandler(int);
-int find_client_index(int);
-char *print_chatrooms();
-//void handle_groupchat_command(char *, char **);
-
 static volatile int cont = 1;
 int repeat = 1;
 
 int GPORT = PORT;
 
 int chatrooms_added = 0;
-struct chatroom existing_chatrooms[MAX_NUM_CHATROOMS];
-
 int num_clients = 0;
+struct chatroom existing_chatrooms[MAX_NUM_CHATROOMS];
 struct client clients[MAX_CLIENTS];
 
 
@@ -178,10 +165,10 @@ void subprocess(int socket, char *user, char* fifo_name) {
   if((fd = open(fifo_name, O_RDWR | O_NONBLOCK)) > 0) {    
     printf("[SUB %d - %s]: Connected to fifo [%s]\n", getpid(), user, fifo_name);
     unlink(fifo_name);
-    //close(fd);
   } else
     printf("[SUB %d - %s]: Error creating FD!\n", getpid(), user);
 
+  // Read client user name
   read(socket, client_name, sizeof(client_name));
   user = client_name;
 
@@ -193,14 +180,9 @@ void subprocess(int socket, char *user, char* fifo_name) {
     
     int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo, client_name);
     write(socket, write_to_client, sizeof(write_to_client));
-
-
     
     // Listen to chat response from mainserver?
-
-    // Send that stuff to client
-    
-    
+    // Send that stuff to client    
 
     // Handle writing to mainserver and receive a response
     if(resp > 0) {
@@ -232,34 +214,6 @@ void subprocess(int socket, char *user, char* fifo_name) {
   close(socket);
   exit(0);
 }
-
-
-/* 
-   subserver method that handles commands from a client in a groupchat
-*/
-/*
-  void handle_groupchat_command(char *s, char **to_client){
-  if(strcmp(s, "do") == 0) {
-    
-  *to_client = "success";
-  
-  } else if(strcmp(s, "quit") == 0) {
-    
-  // connect to GLOBAL automatically
-  *to_client = "success"; // SEND ID BACK!!!
-    
-  } else if (strcmp(s, "members") == 0) {
-    
-  /* List ALL created SUBGROUPS */
-/*
- *to_client = "success";
-    
- } else {
-    
- *to_client = "invalid command";
- }
- }
-*/
 
 
 // Handles responses sent from mainserver back to subprocess
