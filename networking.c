@@ -108,7 +108,7 @@ int client_setup(char *server, char *port) {
   int sd, i, inc = 0;
 
   //create the socket
-  sd = socket( AF_INET, SOCK_STREAM, 0 );
+  sd = socket( AF_INET, SOCK_STREAM & SOCK_NONBLOCK, 0 );
   error_check( sd, "client socket" );
 
   //run getaddrinfo

@@ -3,6 +3,8 @@
 #include "parser.h"
 
 void handle_sub_response(char *, int, char (*)[]);
+int handle_user_input(int input, int socket, char *input_buffer);
+void receive_mesage(int socket, char *outside_buffer);
 
 static void client_sighandler(int signo){
   switch(signo) {
@@ -58,56 +60,47 @@ int main(int argc, char **argv) {
   write(current_socket, user_name, sizeof(user_name));
 
   char input_buffer[BUFFER_SIZE];
+  char outside_buffer[BUFFER_SIZE];
+
+  int n_fd = 100;
+  int input = dup3(0, n_fd, O_NONBLOCK);
+  int did_read;
   while (1) {
     
     printf("[%s @ %s]: ", user_name, current_group);
-    fgets(input_buffer, sizeof(input_buffer), stdin);
-    *strchr(input_buffer, '\n') = 0;
-
-    //char **client_parsed = parse_input(input_buffer, " ");
-    //printf("First arg passed: [%s]\n", client_parsed[0]);
-
-    write(current_socket, input_buffer, sizeof(input_buffer));
-    read(current_socket, input_buffer, sizeof(input_buffer));
-
-    //printf("DEBUG:: Just received: %s:\n", input_buffer);
-    if (strcmp(input_buffer, "wait") == 0) {
-      read(current_socket, input_buffer, sizeof(input_buffer));
+    did_read = 0;
+    //reads from user and socket 
+    while(did_read <= 0){
+      did_read = handle_user_input(input, current_socket, input_buffer);
+      
+      //handles any messages sent by the server
+      int message_received = receive_message(current_socket, outside_buffer);
+      if(message_received > 0){
+	handle_sub_response(input_buffer, current_socket, &current_group);    
+      }
     }
-    
-    handle_sub_response(input_buffer, current_socket, &current_group);
-
-    /*
-      if(strcmp(client_parsed[0], "@join") == 0) {
-      strcat(contents, parsed[1]);
-      write(current_socket, contents, sizeof(contents));
-      read(current_socket, input_buffer, sizeof(input_buffer));
-      printf("Joining chatroom %s:%s\n", ip_addr, input_buffer);
-
-      /* Gets next additional port */ /*
-	 int server_sock;
-	 if((server_sock = client_setup( ip_addr, input_buffer)) != -1)
-	 printf("Connected to chatroom %s:%s!\n", ip_addr, input_buffer);
-	 else
-	 printf("Error: failed to connect!\n");
-      
-	 //printf("SERVER_SOCK: %d\n", server_sock);
-
-	 strcpy(current_group, "CR-");
-	 strncat(current_group, input_buffer, MAX_GROUP_NAME_SIZE);
-	 current_socket = server_sock;
-	 } else {
-	 write(current_socket, input_buffer, sizeof(input_buffer));
-	 read(current_socket, input_buffer, sizeof(input_buffer));
-      
-	 if(strcmp(input_buffer, "chatroom-success") == 0)
-	 printf("Chatroom created!\n");
-	 else
-	 printf("[%s]: [%s]\n", current_group, input_buffer);
-	 } */
   }
+}
 
-     
+int handle_user_input(int input, int socket, char *input_buffer){
+  int bytes_read;
+  bytes_read = read(input, &input_buffer, 10000);
+  if(bytes_read > 0){
+    write(socket, &input_buffer, 10000);
+  }
+  return bytes_read;
+}
+
+int receive_message(int socket, char *outside_buffer){
+  int bytes_read;
+  bytes_read = read(socket, &outside_buffer, 10000);
+  if(bytes_read > 0){
+    *strchr(outside_buffer, '\n') = 0;
+    if (strcmp(outside_buffer, "wait") == 0) {
+      read(socket, outside_buffer, sizeof(outside_buffer));
+    }
+  }
+  return bytes_read;
 }
 
 void handle_sub_response(char *input_buffer, int current_socket, char (*current_group)[]){
