@@ -79,7 +79,7 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
     
     //creating a FIFO to allow interprocess communication
     char fifo_name[20];
-    sprintf(fifo_name, "./FIFO%d\0", global_client_socket);
+    snprintf(fifo_name, sizeof(fifo_name), "./FIFO%d", global_client_socket);
     printf("[MAIN]: Creating fifo [%s]\n", fifo_name);
     mkfifo(fifo_name, 0666);
     printf("[MAIN]: Fifo created!\n");
@@ -87,13 +87,12 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
     //fork off new process to talk to client and have it connect to the new FIFO
     int child_pid = fork();
     if(child_pid == 0) {
-      subprocess(global_client_socket, "pub-test", fifo_name);
+      subprocess(global_client_socket, "USER", fifo_name);
       exit(0);
     }
     
     write(pipe_to_main[WRITE], fifo_name, 20);
     write(pipe_to_main[WRITE], &child_pid, sizeof(child_pid));
-
   }
 
   exit(0);
@@ -172,21 +171,22 @@ void mainserver(int pipe_to_main[2]){
 }
 
 
-void subprocess(int socket, char *group_name, char* fifo_name) {
+void subprocess(int socket, char *user, char* fifo_name) {
   char buffer[BUFFER_SIZE], client_name[MAX_USERNAME_LENGTH];
   int fd, sem_id = 0;
 
   if((fd = open(fifo_name, O_RDWR | O_NONBLOCK)) > 0) {    
-    printf("[SUB %d for %s]: Connected to fifo [%s]\n", getpid(), group_name, fifo_name);
+    printf("[SUB %d - %s]: Connected to fifo [%s]\n", getpid(), user, fifo_name);
     unlink(fifo_name);
     //close(fd);
   } else
-    printf("[SUB %d for %s]: Error creating FD!\n", getpid(), group_name);
+    printf("[SUB %d - %s]: Error creating FD!\n", getpid(), user);
 
   read(socket, client_name, sizeof(client_name));
+  user = client_name;
 
   while (repeat && ((read(socket, buffer, sizeof(buffer)) > 0))) {
-    printf("[SUB %d for %s]: Received [%s]\n", getpid(), group_name, buffer);
+    printf("[SUB %d - %s]: Received [%s]\n", getpid(), user, buffer);
     
     char write_to_client[BUFFER_SIZE];
     char write_to_fifo[BUFFER_SIZE], read_from_fifo[BUFFER_SIZE];
@@ -212,14 +212,14 @@ void subprocess(int socket, char *group_name, char* fifo_name) {
 	wait_semaphore(sem_id);
       
       write(fd, write_to_fifo, sizeof(write_to_fifo));
-      printf("[SUB %d for %s]: Wrote to MAIN [%s]\n", getpid(), group_name, write_to_fifo);      
+      printf("[SUB %d - %s]: Wrote to MAIN [%s]\n", getpid(), user, write_to_fifo);      
 
       // Allow mainserver to write
       free_semaphore(sem_id);
       memset(read_from_fifo, 0, BUFFER_SIZE);
       
       while(read(fd, read_from_fifo, sizeof(read_from_fifo)) <= 0);
-      printf("[SUB %d for %s]: Received mainserver response\n", getpid(), group_name);
+      printf("[SUB %d - %s]: Received mainserver response\n", getpid(), user);
 
       // Process read_from_fifo
       handle_info_command(read_from_fifo, &write_to_client);
@@ -273,7 +273,7 @@ void handle_sub_command(char *s, char (*to_sub)[]){
     if(strcmp(parsed[0], "sub-wants-list") == 0){
 
       // To be given to client to parse
-      char to_send[BUFFER_SIZE] = "#t|SERVER|\nAvailable chatrooms:\n-------------------\n";    
+      char to_send[BUFFER_SIZE] = "#t|SERVER|\n--------------- Available chatrooms ---------------\n";
 
       strcat(to_send, print_chatrooms());
       strcat(to_send, "#");

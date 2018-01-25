@@ -7,6 +7,7 @@ SERVER = server
 CLIENT = client
 
 forking: client fserver
+	@echo "Compilation successful!"
 
 fserver: $(SERV_OBJS)
 	@$(CC) -o $(SERVER) $(SERV_OBJS)

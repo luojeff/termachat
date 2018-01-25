@@ -16,7 +16,7 @@ static void client_sighandler(int signo){
   }
 }
 
-int main(int argc, char **argv) {  
+int main(int argc, char **argv) {
 
   /* Handle user signals */
   signal(SIGINT, client_sighandler);
@@ -28,6 +28,8 @@ int main(int argc, char **argv) {
   int MAX_GROUP_NAME_SIZE = 32;
   char current_group[MAX_GROUP_NAME_SIZE];
   strcpy(current_group, "PUB");
+
+  printf("------------------- Termachat --------------------\n");
   
   char *ip_addr;
   if (argc == 2) {
@@ -49,7 +51,7 @@ int main(int argc, char **argv) {
   current_socket = server_socket;
 
   char user_name[MAX_USERNAME_LENGTH];
-  printf("[termachat client]: Enter a username: ");
+  printf("Enter a username: ");
   fgets(user_name, sizeof(user_name), stdin);
   *strchr(user_name, '\n') = 0;
 
