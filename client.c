@@ -68,6 +68,7 @@ int main(int argc, char **argv) {
     if (strcmp(input_buffer, "wait") == 0) {
       read(current_socket, input_buffer, sizeof(input_buffer));
     }
+    
     handle_sub_response(input_buffer, current_socket);
 
     /*
@@ -187,6 +188,12 @@ void handle_sub_response(char *input_buffer, int current_socket){
     } else if(strcmp("already-joined-other-chatroom", next) == 0) {
 
       printf("Already joined other room!\n");
+    } else if(strcmp("response", next) == 0) {
+
+      printf("{Replace w/ chatroom chat stuff...}\n");
+    } else if(strcmp("written", next) == 0){
+
+      printf("Wrote to chat!\n");
     } else {
       printf("No handling case for client -- check server code!\n");
     }

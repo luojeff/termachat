@@ -12,6 +12,12 @@
 @create <chatroom_name>
     Create chatroom named chatroom_name
 
+@w <text>
+    Write text to your current chatroom
+
+@r
+    Read from your current chatroom
+
 @join <chatroom_name>
     Join chatroom named chatroom_name
 

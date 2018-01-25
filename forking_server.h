@@ -1,4 +1,6 @@
-/* Storing information about chatrooms */
+#define CONTENTS_SIZE 512
+
+/* Information about chatrooms */
 struct chatroom {
   char *name;
   int num_members;
@@ -6,6 +8,7 @@ struct chatroom {
   int server_sd;
   char *fifo_to_main;  
   struct node *members;
+  char contents[CONTENTS_SIZE][BUFFER_SIZE];
 };
 
 struct client {
