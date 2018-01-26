@@ -66,20 +66,20 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
       printf("[MAIN]: Creating fifo [%s]\n", fifo_name);
       mkfifo(fifo_name, 0666);
       printf("[MAIN]: Fifo created!\n");
-    
+      
       //fork off new process to talk to client and have it connect to the new FIFO
       int child_pid = fork();
       if(child_pid == 0) {
         subprocess(global_client_socket, "USER", fifo_name);
         exit(0);
       }
-    
+      
       write(pipe_to_main[WRITE], fifo_name, 20);
       write(pipe_to_main[WRITE], &child_pid, sizeof(child_pid));
     }
-   } 
-
-	
+  } 
+  
+  
   exit(0);
 }
 
@@ -94,76 +94,84 @@ void mainserver(int pipe_to_main[2]){
   char from_sub[BUFFER_SIZE], to_sub[BUFFER_SIZE];
   
   fd_set read_fds;
-
+  
   while(cont){
     FD_ZERO(&read_fds);
     FD_SET(pipe_to_main[READ], &read_fds);
     int i = 0;
     for(; i < num_clients; i++){
-      FD_SET(clients[i].pipe_fd, &read_fds);
+      FD_SET(server_fds[i], &read_fds);
     }
-
+    
     select(num_clients + 1, &read_fds, NULL, NULL, NULL);
     // Handle new client setup stuff
     if(FD_ISSET(pipe_to_main[READ], &read_fds)){
       read(pipe_to_main[READ], fifo_name, 20);
-    
-      if((fd = open(fifo_name, O_RDWR)) > 0) {
+      
+      if((fd = open(fifo_name, O_RDWR | O_NONBLOCK)) > 0) {
 	printf("[MAIN %d]: Connected to fifo [%s]\n", getpid(), fifo_name);
 	server_fds[sub_count] = fd;
-
+	
 	int sub_pid = 0;
 	while(read(pipe_to_main[READ], &sub_pid, 4) <= 0);
-
+	
 	sem_ids[sub_count] = create_semaphore(sub_pid);
 	//printf("[MAIN %d]: Semaphore {sem_id: %d} created!\n", getpid(), sem_ids[sub_count]);
 	sub_count++;
-
+	
 	//printf("DEBUG:: Add a new client into table: %d\n", sub_pid);
         struct client new_client;
         new_client.client_sub_pid = sub_pid;
         new_client.chatroom_index = -1;
         new_client.status = 1;
-	new_client.pipe_fd = fd;
 	new_client.user_name = (char*)malloc(MAX_USERNAME_LENGTH*sizeof(char) + 1);
         clients[num_clients++] = new_client;
       } else
 	printf("[MAIN %d]: Failed to connect to fifo [%s]\n", getpid(), fifo_name);
-
+      
     }
-
+    
     else{
       int sem_id, sub_fd;
-
+      
       for(i=0; i<sub_count; i++){
         sub_fd = server_fds[i];
         sem_id = sem_ids[i];
-
+	
+        // Temp just to get it working
+        if(read(sub_fd, from_sub, sizeof(from_sub)) > 0){
+          int x = 0;
+          for(; x < num_clients; x++){
+            write(server_fds[x], from_sub, sizeof(from_sub));
+          }
+          break;
+        }
+	/*
         // Verify that semaphore is used (before sub writes)
         if(is_used(sem_id) && (read(sub_fd, from_sub, sizeof(from_sub)) > 0)){
 	
-	  printf("[MAIN %d]: Received from sub [%s]\n", getpid(), from_sub);
+	printf("[MAIN %d]: Received from sub [%s]\n", getpid(), from_sub);
 	
-	  handle_sub_command(from_sub, &to_sub);
-
-	  // Wait for subprocess to read before writing
-	  wait_semaphore(sem_id);	
-	  write(sub_fd, to_sub, sizeof(to_sub));
-	  printf("[MAIN %d]: Sent response to subprocess\n", getpid());
-
-	  free_semaphore(sem_id);
+	handle_sub_command(from_sub, &to_sub);
+	
+	// Wait for subprocess to read before writing
+	wait_semaphore(sem_id);
+	write(sub_fd, to_sub, sizeof(to_sub));
+	printf("[MAIN %d]: Sent response to subprocess\n", getpid());
+	
+	//free_semaphore(sem_id);
         }
+	}*/
       }
-}
-
-
+      
+    }
     // end of while
   }
-
+  
   for(i=0; i<sub_count; i++){
     remove_semaphore(&sem_ids[i]);
   }
-
+  
   exit(0);
 }
 
@@ -172,23 +180,33 @@ void subprocess(int socket, char *user, char* fifo_name) {
   char buffer[BUFFER_SIZE], client_name[MAX_USERNAME_LENGTH];
   int fd, sem_id = 0;
 
-  if((fd = open(fifo_name, O_RDWR | O_NONBLOCK)) > 0) {    
+  if((fd = open(fifo_name, O_RDWR)) > 0) {    
     printf("[SUB %d - %s]: Connected to fifo [%s]\n", getpid(), user, fifo_name);
     unlink(fifo_name);
   } else
     printf("[SUB %d - %s]: Error creating FD!\n", getpid(), user);
 
   // Read client user name
-  while(read(socket, client_name, sizeof(client_name)) <= 0)
-  user = client_name;
-  
+  while(read(socket, client_name, sizeof(client_name)) <= 0);
+  user = client_name; 
+
+  char write_to_client[BUFFER_SIZE];
+  char write_to_fifo[BUFFER_SIZE], read_from_fifo[BUFFER_SIZE];
+ 
+  fd_set read_fds;
+
   while (repeat) {
-    if(read(socket, buffer, sizeof(buffer)) > 0){
+    FD_ZERO(&read_fds);
+    FD_SET(fd, &read_fds);
+    FD_SET(socket, &read_fds);
+    
+    select(fd + 1, &read_fds, NULL, NULL, NULL);
+
+    if(FD_ISSET(socket, &read_fds)){
+      read(socket, buffer, sizeof(buffer));
       printf("[SUB %d - %s]: Received [%s]\n", getpid(), user, buffer);
-    
-      char write_to_client[BUFFER_SIZE];
-      char write_to_fifo[BUFFER_SIZE], read_from_fifo[BUFFER_SIZE];
-    
+      write(fd, buffer, BUFFER_SIZE);
+      /*
       int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo, client_name);
       write(socket, write_to_client, sizeof(write_to_client));
     
@@ -219,10 +237,13 @@ void subprocess(int socket, char *user, char* fifo_name) {
 
         // Write back to client once again
         write(socket, write_to_client, sizeof(write_to_client));
-      }
+      */
+    }
+    if(FD_ISSET(fd, &read_fds)){
+     read(fd, buffer, BUFFER_SIZE);
+     write(socket, buffer, BUFFER_SIZE);
+    }
    } 
- }
-  
   close(socket);
   exit(0);
 }
