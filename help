@@ -1,7 +1,7 @@
----- termachat help page ----
+-------- termachat help page --------
 
 @list
-    List all existing chatrooms
+    List all existing chatrooms and their members
 
 @create <chatroom_name>
     Create chatroom named chatroom_name
@@ -10,13 +10,10 @@
     Join chatroom named chatroom_name
 
 @leave
-    Leave the chatroom
+    Leave the current chatroom
 
 @delete <chatroom_name>
     Deletes chatroom named chatroom_name
-
-@current
-    Get notified of which chatroom you're in currently
 
 @w <text>
     Write text to your current chatroom
@@ -24,8 +21,9 @@
 @r
     Read from your current chatroom
 
-@pm <user_name>
-    Private messages user named user_name
+@history
+    Reveal the message history of your chatroom. Displays
+    the lastmost ~512 bytes.
 
 @exit
     End the subprocess and exit the client program

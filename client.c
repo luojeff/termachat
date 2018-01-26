@@ -185,7 +185,10 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
     } else if(strcmp("already-joined-other-chatroom", next) == 0) {
       printf("Already in another chatroom. @leave before joining a new one!\n");
     } else if(strcmp("read", next) == 0) {
-      printf("---Previous messages---\n");
+      printf("--- Previous Messages ---\n");
+      printf("%s\n", args[2]);
+    } else if(strcmp("hread", next) == 0) {
+      printf("--- Message History ---\n");
       printf("%s\n", args[2]);
     } else if(strcmp("written", next) == 0) {
       //printf("Wrote to chat!\n"); // FOR TESTING

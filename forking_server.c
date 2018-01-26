@@ -242,7 +242,7 @@ void handle_sub_command(char *s, char (*to_sub)[]){
   } else if (num_phrases == 2) {
     
     if (strcmp(parsed[0], "sub-wants-chat") == 0) {
-      char contents[256], filename[32];
+      char contents[BUFFER_SIZE], filename[32];
       int client_sub_pid = atoi(parsed[1]);
       int client_index = find_client_index(client_sub_pid);
       struct client cl = clients[client_index];
@@ -253,7 +253,7 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 	memset(contents, 0, sizeof(contents));
 	struct chatroom cr = existing_chatrooms[cl.chatroom_index];	
 	sprintf(filename, "%s.txt", cr.name);
-	
+
 	int fd = open(filename, O_RDONLY | O_CREAT, 0644);
 	lseek(fd, cl.pos, SEEK_SET);
 	read(fd, contents, sizeof(contents));
@@ -261,6 +261,37 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 	clients[client_index].pos = get_file_size(filename);	
 	sprintf(*to_sub, "#o|read|%s#", contents);
       }
+    } else if (strcmp(parsed[0], "sub-wants-history") == 0) {
+      char contents[BUFFER_SIZE], filename[32];
+      int client_sub_pid = atoi(parsed[1]);
+      int client_index = find_client_index(client_sub_pid);
+      struct client cl = clients[client_index];      
+     
+      if(cl.status <= 1) {
+	strcpy(*to_sub, "#o|not-in-chatroom#");
+      } else {
+	memset(contents, 0, sizeof(contents));
+	struct chatroom cr = existing_chatrooms[cl.chatroom_index];	
+	sprintf(filename, "%s.txt", cr.name);
+	
+	int fd = open(filename, O_RDONLY | O_CREAT, 0644);
+
+	int file_size = get_file_size(filename);
+
+	int pos;
+	if(file_size - BUFFER_SIZE / 2 <= 0){
+	  pos = 0;
+	} else {
+	  pos = file_size - BUFFER_SIZE / 2;
+	}
+	
+	lseek(fd, pos, SEEK_SET);
+	read(fd, contents, sizeof(contents));
+	close(fd);
+	clients[client_index].pos = get_file_size(filename);	
+	sprintf(*to_sub, "#o|hread|%s#", contents);
+      }
+      
     } else if (strcmp(parsed[0], "create") == 0) {
 
       // Check to see if chatroom name is taken      
@@ -594,6 +625,10 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *c
       sprintf(*to_fifo, "sub-wants-chat|%d", getpid());
       return 1;
       
+    } else if (strcmp(parsed[0], "@history") == 0){
+      strcpy(*to_client, "wait");
+      sprintf(*to_fifo, "sub-wants-history|%d", getpid());
+      return 1;
     } else {
       
       strcpy(*to_client, "#c|display-invalid#");
@@ -603,72 +638,18 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *c
     
   } else if (num_phrases >= 2) {
     
-    //char *cr_name;
-    //struct chatroom curr_cr;
-    
     /* Double phrase commands */
     if(strcmp(parsed[0], "@join") == 0) {
       //char pass = 0;
       //cr_name = parsed[1];
       strcpy(*to_client, "wait");
       sprintf(*to_fifo, "join|%s|%d|%s", parsed[1], getpid(), client_name);
-      
-      /*int i;
-	for(i=0; i<sizeof(existing_chatrooms)/sizeof(existing_chatrooms[0]); i++){
-	curr_cr = existing_chatrooms[i];
-	if(strcmp(curr_cr.name, cr_name) == 0) {
-	sprintf(*to_client, "#c|join|%s#", int_to_str(curr_cr.port)); 
-	pass = 1;
-	}	
-	}
-      
-	// SHOULD RETURN PORT OF RESPECTIVE CHATROOM
-
-	if(!pass){
-	strcpy(*to_client, "#o|chatroom-noexist#");
-	}
-      */
 
       return 1;
     } else if (strcmp(parsed[0], "@create") == 0) {
       
-      /* Make sure chatroom doesn't already exist! */
-      //cr_name = parsed[1];
       strcpy(*to_client, "wait");
       sprintf(*to_fifo, "create|%s", parsed[1]);
-      /*	
-		{    
-		char *cr_name = parsed[1];
-		int lis_sock = server_setup(GPORT++);
-		//printf("lis_sock = %d\n", lis_sock);	
-
-		printf("[MAIN %d]: chatroom %s created on port %s\n", getpid(), cr_name, int_to_str(GPORT-1));	
-
-		struct chatroom chatrm;
-		chatrm.name = cr_name;
-		existing_chatrooms[chatrooms_added] = chatrm;
-		chatrooms_added++;
-	
-
-		// Find a way to redo this code
-		int f = fork();
-    
-		if (f == 0) {
-		int client_sock = server_connect(lis_sock);
-		printf("client_sock = %d\n", client_sock);
-      
-		if (client_sock != -1) {
-		_subprocess(client_sock, cr_name);
-
-		printf("[MAIN %d]: Chatroom on port %s closed!\n", getpid(), int_to_str(GPORT-1));
-		} else {
-		printf("[MAIN %d]: Failed to create chatroom!\n", getpid());
-		}	
-		}  else {
-		strcpy(*to_client, "#o|chatroom-success#");
-		}
-		}
-      */
 
       return 1;
       

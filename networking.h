@@ -20,7 +20,7 @@
 #define NETWORKING_H
 
 #define ATTEMPTS 50
-#define BUFFER_SIZE 512
+#define BUFFER_SIZE 1024
 #define PORT 10001 // default port attempts start at
 #define TEST_IP "127.0.0.1"
 
