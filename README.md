@@ -9,6 +9,9 @@ A chatroom that runs purely in the terminal. Create a chatroom over intranet and
 
 ### In development
 
+Not having to use commands for read and write.
+List of chatrooms.
+
 ### How to compile
 
 1. First, run the makefile: ```$ make```
@@ -32,13 +35,17 @@ A chatroom that runs purely in the terminal. Create a chatroom over intranet and
 ### Design implementations
 
 + Semaphores to control access to subprocess and block race conditions
-+ Linked list structure to store information about chatrooms and their clients
-   
++ Linked list structure to store information about chatrooms and their clients 
+
 ### How to use
 
 Full descriptions for supported commands can be obtained by typing ```@help```
 
 ### Bugs
+
+Occational Crashes
+Issues making a new server after closing one. Server occationaly does not close properly and the port is used up.
+Issues keeping a second client connected (only on school computers)
 
 ### Members
 Jeffrey Luo<br>
