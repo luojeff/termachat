@@ -77,7 +77,7 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
       write(pipe_to_main[WRITE], fifo_name, 20);
       write(pipe_to_main[WRITE], &child_pid, sizeof(child_pid));
     }
-   } 
+  } 
 
 	
   exit(0);
@@ -114,6 +114,7 @@ void mainserver(int pipe_to_main[2]){
         new_client.client_sub_pid = sub_pid;
         new_client.chatroom_index = -1;
         new_client.status = 1;
+	new_client.pos = 0;
 	new_client.user_name = (char*)malloc(MAX_USERNAME_LENGTH*sizeof(char) + 1);
         clients[num_clients++] = new_client;
       } else
@@ -132,14 +133,13 @@ void mainserver(int pipe_to_main[2]){
       if(is_used(sem_id) && (read(sub_fd, from_sub, sizeof(from_sub)) > 0)){
 	
 	printf("[MAIN %d]: Received from sub [%s]\n", getpid(), from_sub);
-	
+
 	handle_sub_command(from_sub, &to_sub);
 
 	// Wait for subprocess to read before writing
 	wait_semaphore(sem_id);	
 	write(sub_fd, to_sub, sizeof(to_sub));
-	printf("[MAIN %d]: Sent response to subprocess\n", getpid());
-
+	printf("[MAIN %d]: Sent response [%s] to subprocess\n", getpid(), to_sub);
 	free_semaphore(sem_id);
       }
     }
@@ -168,7 +168,7 @@ void subprocess(int socket, char *user, char* fifo_name) {
 
   // Read client user name
   while(read(socket, client_name, sizeof(client_name)) <= 0)
-  user = client_name;
+    user = client_name;
   
   while (repeat) {
     if(read(socket, buffer, sizeof(buffer)) > 0){
@@ -178,6 +178,7 @@ void subprocess(int socket, char *user, char* fifo_name) {
       char write_to_fifo[BUFFER_SIZE], read_from_fifo[BUFFER_SIZE];
     
       int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo, client_name);
+      printf("DEBUG: %s\n", write_to_client);
       write(socket, write_to_client, sizeof(write_to_client));
     
       // Listen to chat response from mainserver?
@@ -206,10 +207,11 @@ void subprocess(int socket, char *user, char* fifo_name) {
         handle_info_command(read_from_fifo, &write_to_client);
 
         // Write back to client once again
+	//printf("DEBUG: %s\n", write_to_client);
         write(socket, write_to_client, sizeof(write_to_client));
       }
-   } 
- }
+    } 
+  }
   
   close(socket);
   exit(0);
@@ -233,38 +235,33 @@ void handle_sub_command(char *s, char (*to_sub)[]){
       strcat(to_send, "#");
       strcpy(*to_sub, to_send);
       
-    } else if (strcmp(parsed[0], "sub-wants-chat") == 0) {
-
-      char chat[] = "#o|response#";
-
-      strcpy(*to_sub, chat);
-      
-    } else if (strcmp(parsed[0], "sub-wants-leave") == 0) {
-      
-      int client_sub_pid = atoi(parsed[1]);
-      int client_index = find_client_index(client_sub_pid);
-      char *name;
-      
-      if (client_index > -1) {
-        int chatroom_index = clients[client_index].chatroom_index;
-	struct client cl = clients[client_index];	
-
-        if (chatroom_index > -1) {
-          existing_chatrooms[chatroom_index].members = delete_member(existing_chatrooms[chatroom_index].members, cl);
-	  existing_chatrooms[chatroom_index].num_members--;	  
-	  name = existing_chatrooms[chatroom_index].name;
-	  clients[client_index].chatroom_index = -1;
-	  clients[client_index].status = 0;
-        }
-      }      
-
-      sprintf(*to_sub, "#o|left-chat|%s#", name);      
-    } else {
+    }  else {
       strcpy(*to_sub, invalid_request);
     }
     
   } else if (num_phrases == 2) {
-    if (strcmp(parsed[0], "create") == 0) {
+    
+    if (strcmp(parsed[0], "sub-wants-chat") == 0) {
+      char contents[256], filename[32];
+      int client_sub_pid = atoi(parsed[1]);
+      int client_index = find_client_index(client_sub_pid);
+      struct client cl = clients[client_index];
+      
+      if(cl.status <= 1) {
+	strcpy(*to_sub, "#o|not-in-chatroom#");
+      } else {
+	memset(contents, 0, sizeof(contents));
+	struct chatroom cr = existing_chatrooms[cl.chatroom_index];	
+	sprintf(filename, "%s.txt", cr.name);
+	
+	int fd = open(filename, O_RDONLY | O_CREAT, 0644);
+	lseek(fd, cl.pos, SEEK_SET);
+	read(fd, contents, sizeof(contents));
+	close(fd);
+	clients[client_index].pos = get_file_size(filename);	
+	sprintf(*to_sub, "#o|read|%s#", contents);
+      }
+    } else if (strcmp(parsed[0], "create") == 0) {
 
       // Check to see if chatroom name is taken      
       int i;
@@ -289,6 +286,7 @@ void handle_sub_command(char *s, char (*to_sub)[]){
         strcpy(chatrm.name, parsed[1]);
 	chatrm.num_members = 0;
 	chatrm.members = NULL;
+	chatrm.is_valid = 1;
 	//chatrm.contents = (char **)malloc(CONTENTS_SIZE * BUFFER_SIZE);
 
 	
@@ -308,7 +306,11 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 	  existing_chatrooms[chatrooms_added] = chatrm;
 	  chatrooms_added++;
 	}
-	
+
+        char chatfile[32];
+        sprintf(chatfile, "%s.txt", parsed[1]);
+        int fd = open(chatfile, O_CREAT, 0644);
+	close(fd);	
         printf("[MAIN %d]: chatroom %s created\n", getpid(), parsed[1]);
         strcpy(*to_sub, "#o|chatroom-created#");
       }
@@ -335,14 +337,12 @@ void handle_sub_command(char *s, char (*to_sub)[]){
       strcpy(*to_sub, "#c|exit#");
       
     } else if (strcmp(parsed[0], "delete") == 0) {
-      int client_sub_pid = atoi(parsed[1]);
-      char *cr_name = parsed[2];
-
+      //printf("DEBUG: handle delete room\n");
       int i;
       for(i=0; i<chatrooms_added; i++){
 	struct chatroom curr = existing_chatrooms[i];
 
-	if(strcmp(cr_name, curr.name) == 0) {
+	if(strcmp(curr.name, parsed[1]) == 0) {
 	  if(curr.num_members > 0) {
 	    
 	    strcpy(*to_sub, "#o|chat-has-members#");
@@ -350,14 +350,45 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 	  } else if (curr.num_members == 0) {
 	    
 	    // Go ahead and delete
-	    free(curr.name);
-	    curr.is_valid = 0;
+	    free(existing_chatrooms[i].name);
+	    existing_chatrooms[i].is_valid = 0;
+	    char chatfile[32];
+	    sprintf(chatfile, "%s.txt", parsed[1]);
+	    unlink(chatfile);
 	    strcpy(*to_sub, "#o|delete-success#");	    
 	    break;
 	  }
 	}
-      }      
+      }
+      //printf("DEBUG:: finish delete room\n");
+    } else if (strcmp(parsed[0], "sub-wants-leave") == 0) {
       
+      int client_sub_pid = atoi(parsed[1]);
+      int client_index = find_client_index(client_sub_pid);
+      char *name;
+      int pass=1;
+      
+      if (client_index > -1) {
+        int chatroom_index = clients[client_index].chatroom_index;
+	struct client cl = clients[client_index];
+
+	if (chatroom_index > -1) {
+          existing_chatrooms[chatroom_index].members = delete_member(existing_chatrooms[chatroom_index].members, cl);
+	  existing_chatrooms[chatroom_index].num_members--;	  
+	  name = existing_chatrooms[chatroom_index].name;
+	  clients[client_index].chatroom_index = -1;
+	  clients[client_index].status = 1;
+	  clients[client_index].pos = 0;
+        } else {
+	  pass=0;
+	}
+	
+      }
+
+      if(pass)
+	sprintf(*to_sub, "#o|left-chat|%s#", name);
+      else
+	sprintf(*to_sub, "#o|nctl|%s#", name);
     } else {
       strcpy(*to_sub, invalid_request);
     }
@@ -365,13 +396,24 @@ void handle_sub_command(char *s, char (*to_sub)[]){
   } else if (num_phrases >= 3) {
 
     if(strcmp(parsed[0], "write") == 0){
-
-      char *sender_pid = parsed[1];
-      char *contents = parsed[2];
-
+      int client_sub_pid = atoi(parsed[1]);
+      char contents[256], filename[32];
       
+      struct client cl = clients[find_client_index(client_sub_pid)];      
       
-      strcpy(*to_sub, "#o|written#");
+      if(cl.status <= 1) {
+	strcpy(*to_sub, "#o|not-in-chatroom#");
+      } else {
+	struct chatroom cr = existing_chatrooms[cl.chatroom_index];
+	sprintf(filename, "%s.txt", cr.name);
+	sprintf(contents, "[%s]: %s\n", cl.user_name, parsed[2]);
+
+	int fd = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
+	write(fd, contents, strlen(contents));
+	close(fd);
+      
+	strcpy(*to_sub, "#o|written#");
+      }
       
     } else if (strcmp(parsed[0], "join") == 0) {
       
@@ -383,26 +425,27 @@ void handle_sub_command(char *s, char (*to_sub)[]){
       if (client_index > -1) {
 	if (clients[client_index].chatroom_index == -1) {
 
-	  struct chatroom curr;
+	  //struct chatroom curr;
 
           int i;
 	  int pass = 0;
           for(i=0; i<chatrooms_added; i++){
-	    curr = existing_chatrooms[i];
+	    //curr = existing_chatrooms[i];
 	    
-	    if(curr.is_valid && (strcmp(curr.name, parsed[1]) == 0)) {
+	    if(existing_chatrooms[i].is_valid && (strcmp(existing_chatrooms[i].name, parsed[1]) == 0)) {
 
 	      struct client cl = clients[client_index];
 	      
 	      // Add into chatroom member
-	      curr.members = insert_front(curr.members, cl);
-	      curr.num_members++;
-	      curr.is_valid = 1;
+	      existing_chatrooms[i].members = insert_front(existing_chatrooms[i].members, cl);
+	      existing_chatrooms[i].num_members++;
 	      
 	      clients[client_index].chatroom_index = i;
 	      clients[client_index].status = 2;	      
 	      clients[client_index].user_name = realloc(clients[client_index].user_name, strlen(client_name)*sizeof(char)+1);
-	      
+	      char chatfile[32];
+	      sprintf(chatfile, "%s.txt", parsed[1]);
+	      clients[client_index].pos = get_file_size(chatfile);	      
 	      strcpy(clients[client_index].user_name, client_name);
 	      sprintf(*to_sub, "#c|join|%s#", parsed[1]);
 	      pass = 1;
@@ -460,6 +503,14 @@ char *print_chatrooms() {
   return s;
 }
 
+size_t get_file_size(const char *filename) {
+  struct stat st;
+  if(stat(filename, &st) != 0) {
+    return 0;
+  }
+  return st.st_size;
+}
+
 /* 
    Handles information sent back from mainserver to be
    sent back to client 
@@ -481,6 +532,7 @@ void handle_info_command(char *s, char (*to_client)[]){
 
 */
 int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *client_name) {
+  //printf("DEBUG:: received: %s\n", s);
   int num_phrases = get_num_phrases(s, ' '); // don't move this line
   char **parsed = parse_input(s, " ");
 
@@ -534,16 +586,13 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *c
       return 1;
       
     } else if (strcmp(parsed[0], "@leave") == 0) {
-      strcpy(*to_client, "wait#");
+      strcpy(*to_client, "wait");
       sprintf(*to_fifo, "sub-wants-leave|%d", getpid());
       
-      return 0;
+      return 1;
     } else if (strcmp(parsed[0], "@r") == 0) {
-
-      char selected_chatroom[] = "cr1";
-
       strcpy(*to_client, "wait");
-      sprintf(*to_fifo, "sub-wants-chat|%s", selected_chatroom);
+      sprintf(*to_fifo, "sub-wants-chat|%d", getpid());
       return 1;
       
     } else {
@@ -641,12 +690,12 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *c
       }      
       
       sprintf(*to_fifo, "write|%d|%s", getpid(), to_write);
-      return 1;      
+      return 1;
       
     } else if (strcmp(parsed[0], "@delete") == 0) {
-      sprintf(*to_fifo, "delete|%d|%s", getpid(), parsed[1]);
-      strcpy(*to_client, "deleted");      
-      return 0;
+      strcpy(*to_client, "wait");
+      sprintf(*to_fifo, "delete|%s", parsed[1]);
+      return 1;
     } else {
       
       strcpy(*to_client, "#c|display-invalid#");

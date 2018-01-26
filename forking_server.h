@@ -20,7 +20,8 @@ struct client {
   int client_sub_pid;
   int chatroom_index;
   int status; /*0: disconnected; 1: connected; 2: joined a room */
-  char *user_name;  
+  char *user_name;
+  int pos;  
 };
 
 void subprocess(int, char *, char*);
@@ -33,5 +34,6 @@ void print_error();
 void intHandler(int);
 int find_client_index(int);
 char *print_chatrooms();
+size_t get_file_size(const char *);
 
 #endif

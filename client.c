@@ -62,33 +62,30 @@ int main(int argc, char **argv) {
   write(current_socket, user_name, sizeof(user_name));
 
   char input_buffer[BUFFER_SIZE];
-  char outside_buffer[BUFFER_SIZE];
-
-  int n_fd = 100;
-  int input = dup3(0, n_fd, O_NONBLOCK); // stdin
-  int did_read;
-  
   while (1) {
     
-    printf("[%s @ %s]: \n", user_name, current_group);
-    did_read = 0;
-    
-    //reads from user and socket 
-    while(did_read <= 0){
-      did_read = handle_user_input(input, current_socket, input_buffer);
-      
-      //handles any messages sent by the server
-      int message_received = receive_message(current_socket, outside_buffer);
-      if(message_received > 0){
-	handle_sub_response(input_buffer, current_socket, &current_group);    
-      }
+    printf("[%s @ %s]: ", user_name, current_group);
+    fgets(input_buffer, sizeof(input_buffer), stdin);
+    *strchr(input_buffer, '\n') = 0;
+
+    //char **client_parsed = parse_input(input_buffer, " ");
+    //printf("First arg passed: [%s]\n", client_parsed[0]);
+
+    write(current_socket, input_buffer, sizeof(input_buffer));
+    read(current_socket, input_buffer, sizeof(input_buffer));
+
+    //printf("DEBUG:: Just received: %s:\n", input_buffer);
+    if (strcmp(input_buffer, "wait") == 0) {
+      read(current_socket, input_buffer, sizeof(input_buffer));
     }
+    
+    handle_sub_response(input_buffer, current_socket, &current_group);
   }
 }
 
 int handle_user_input(int input, int socket, char *input_buffer){
   int bytes_read;
-  bytes_read = read(input, &input_buffer, BUFFER_SIZE);
+  while((bytes_read = read(input, &input_buffer, BUFFER_SIZE)) < 0);
   if(bytes_read > 0){
     write(socket, &input_buffer, BUFFER_SIZE);
   } 
@@ -104,7 +101,7 @@ int receive_message(int socket, char *outside_buffer){
     if (strcmp(outside_buffer, "wait") == 0) {
       read(socket, outside_buffer, sizeof(outside_buffer));
     }
-   printf("Received: [%s]\n", outside_buffer); 
+    printf("Received: [%s]\n", outside_buffer); 
   }
   
   return bytes_read;
@@ -114,7 +111,7 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
   char **client_parsed, **args;
   
   if(count_occur(input_buffer, "#") != 2){
-    printf("Received invalid response by server! Check server code!\n");      
+    printf("Received invalid response by server! Check server code!\n");
     exit(0);
   }
 
@@ -132,6 +129,7 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
     } else if (strcmp("display-help", command) == 0){
       int fd = open("help", O_RDONLY);
       char contents[1024];
+      memset(contents, 0, sizeof(contents));
       read(fd, contents, sizeof(contents));
       printf("%s\n", contents);
       close(fd);
@@ -163,39 +161,45 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
 
 
     // *Other* responses from server
-    if(strcmp("chatroom-noexist", next) == 0){      
+    if(strcmp("not-in-chatroom", next) == 0){
+      printf("You must be in a chatroom to perform that operation!\n");
+    } else if(strcmp("chatroom-noexist", next) == 0){      
       printf("Chatroom does not exist!\n");      
-    } else if(strcmp("chatroom-nametaken", next) == 0){      
-      printf("Chatroom w/ input name already exists!\n");
+    } else if(strcmp("chatroom-nametaken", next) == 0){
+      printf("Chatroom w/ given name already exists!\n");
       
       /*    } else if(strcmp("requesting", next) == 0){
       
-      printf("Requesting from server...\n");
+	    printf("Requesting from server...\n");
 
-      char sub_response[BUFFER_SIZE];
-      read(current_socket, sub_response, sizeof(sub_response));
+	    char sub_response[BUFFER_SIZE];
+	    read(current_socket, sub_response, sizeof(sub_response));
 
-      // Recursive implementation
-      handle_sub_response(sub_response, current_socket);
+	    // Recursive implementation
+	    handle_sub_response(sub_response, current_socket);
       */
     } else if(strcmp("chatroom-created", next) == 0) {
       printf("Chatroom created!\n");
     } else if(strcmp("client-noexist", next) == 0) {
-      printf("Client Process does not exist!\n");
+      printf("Client process doesn't exist!\n");
     } else if(strcmp("already-joined-other-chatroom", next) == 0) {
-      printf("Already joined other room!\n");
-    } else if(strcmp("response", next) == 0) {
-      printf("{Replace w/ chatroom chat stuff...}\n");
+      printf("Already in another chatroom. @leave before joining a new one!\n");
+    } else if(strcmp("read", next) == 0) {
+      printf("---Previous messages---\n");
+      printf("%s\n", args[2]);
     } else if(strcmp("written", next) == 0) {
-      printf("Wrote to chat!\n"); // FOR TESTING
+      //printf("Wrote to chat!\n"); // FOR TESTING
     } else if(strcmp("left-chat", next) == 0) {
+      strcpy(*current_group, "PUB");
       printf("Left chatroom %s!\n", args[2]);
+    } else if(strcmp("nctl", next) == 0) {
+      printf("You cannot leave %s. @exit to quit client and subprocess.\n", *current_group);
     } else if (strcmp("chat-has-members", next) == 0) {
       printf("Unable to delete -- chatroom has members!\n");
     } else if (strcmp("delete-success", next) == 0) {
       printf("Chatroom successfully deleted!\n");
     } else {
-      printf("No handling case for client -- check server code!\n");
+      printf("Command unavailable!\n");
     }
   } else {
     /* Invalid response from server! */
