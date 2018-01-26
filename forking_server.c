@@ -37,7 +37,7 @@ int main() {
   
   // Unnamed pipe between mainserver and listeningserver
   int pipe_to_main[2];
-  pipe2(pipe_to_main, O_NONBLOCK);
+  pipe(pipe_to_main);
   
   int f = fork();
   if(f == 0)
@@ -92,19 +92,29 @@ void mainserver(int pipe_to_main[2]){
   int server_fds[MAX_CLIENTS], sem_ids[MAX_CLIENTS];
   char fifo_name[20];
   char from_sub[BUFFER_SIZE], to_sub[BUFFER_SIZE];
+  
+  fd_set read_fds;
 
   while(cont){
-    
+    FD_ZERO(&read_fds);
+    FD_SET(pipe_to_main[READ], &read_fds);
+    int i = 0;
+    for(; i < num_clients; i++){
+      FD_SET(clients[i].pipe_fd, &read_fds);
+    }
+
+    select(num_clients + 1, &read_fds, NULL, NULL, NULL);
     // Handle new client setup stuff
-    if(read(pipe_to_main[READ], fifo_name, 20) > 0) {
+    if(FD_ISSET(pipe_to_main[READ], &read_fds)){
+      read(pipe_to_main[READ], fifo_name, 20);
     
-      if((fd = open(fifo_name, O_RDWR | O_NONBLOCK)) > 0) {	
+      if((fd = open(fifo_name, O_RDWR)) > 0) {
 	printf("[MAIN %d]: Connected to fifo [%s]\n", getpid(), fifo_name);
 	server_fds[sub_count] = fd;
 
 	int sub_pid = 0;
 	while(read(pipe_to_main[READ], &sub_pid, 4) <= 0);
-	
+
 	sem_ids[sub_count] = create_semaphore(sub_pid);
 	//printf("[MAIN %d]: Semaphore {sem_id: %d} created!\n", getpid(), sem_ids[sub_count]);
 	sub_count++;
@@ -114,37 +124,39 @@ void mainserver(int pipe_to_main[2]){
         new_client.client_sub_pid = sub_pid;
         new_client.chatroom_index = -1;
         new_client.status = 1;
+	new_client.pipe_fd = fd;
 	new_client.user_name = (char*)malloc(MAX_USERNAME_LENGTH*sizeof(char) + 1);
         clients[num_clients++] = new_client;
       } else
 	printf("[MAIN %d]: Failed to connect to fifo [%s]\n", getpid(), fifo_name);
-    
+
     }
 
-    
-    int sem_id, sub_fd;
-    
-    for(i=0; i<sub_count; i++){
-      sub_fd = server_fds[i];
-      sem_id = sem_ids[i];
+    else{
+      int sem_id, sub_fd;
 
-      // Verify that semaphore is used (before sub writes)
-      if(is_used(sem_id) && (read(sub_fd, from_sub, sizeof(from_sub)) > 0)){
+      for(i=0; i<sub_count; i++){
+        sub_fd = server_fds[i];
+        sem_id = sem_ids[i];
+
+        // Verify that semaphore is used (before sub writes)
+        if(is_used(sem_id) && (read(sub_fd, from_sub, sizeof(from_sub)) > 0)){
 	
-	printf("[MAIN %d]: Received from sub [%s]\n", getpid(), from_sub);
+	  printf("[MAIN %d]: Received from sub [%s]\n", getpid(), from_sub);
 	
-	handle_sub_command(from_sub, &to_sub);
+	  handle_sub_command(from_sub, &to_sub);
 
-	// Wait for subprocess to read before writing
-	wait_semaphore(sem_id);	
-	write(sub_fd, to_sub, sizeof(to_sub));
-	printf("[MAIN %d]: Sent response to subprocess\n", getpid());
+	  // Wait for subprocess to read before writing
+	  wait_semaphore(sem_id);	
+	  write(sub_fd, to_sub, sizeof(to_sub));
+	  printf("[MAIN %d]: Sent response to subprocess\n", getpid());
 
-	free_semaphore(sem_id);
+	  free_semaphore(sem_id);
+        }
       }
-    }
-    
-    
+}
+
+
     // end of while
   }
 
