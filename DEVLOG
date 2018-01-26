@@ -11,19 +11,23 @@ Termachat: connect with your friends!!!!
 ------------------------------------------
 OBSTACLES OVERCOME
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-- 
+- Organizing data
+- Sending data between multiple processes and multiple computers
 
 UNRESOLVED ISSUES
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-- 
+- Recieveing messages without a command to ask for them
+- Sending messages without using a command 
+- Bugs
 
 MID-DEVELOPMENT DESIGN CHANGES
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-- 
+- Parsing commands 
+- Nonblocking Vs. Select
 
 LESSONS LEARNED
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-- 
+- Don't over think things. Simplicity is your friend. 
 ||||||||||||||||||||||||||||||||||||||||||
 
  ______   ______   __   __   __       ______   _______     
@@ -35,6 +39,7 @@ LESSONS LEARNED
     \____/_/ \_____\/ \___/_(   \_____\/ \_____\/ \_____\/ 
 ==============================================================
 
+ 
 2017-12-23
 --------------------------------------------------------------
 Gian & Jeffrey :: Work on design plan and README
@@ -45,9 +50,19 @@ Gian & Jeffrey :: Work on design plan and README
 Gian & Jeffrey :: Finish design plan
 ==============================================================
 
+2018-01-08
+--------------------------------------------------------------
+Jeffrey & Daniel:: Created basic organizational outline. What things are going to need to go where and how we are going to get them there.
+==============================================================
+
 2018-01-09
 --------------------------------------------------------------
 Jeffrey :: Added networking template and code to create basic server interaction
+==============================================================
+
+2018-01-14
+--------------------------------------------------------------
+Daniel :: Set up for pipes between processes 
 ==============================================================
 
 2018-01-15
@@ -58,4 +73,9 @@ Jeffrey :: Added client signal handling, and ability to create new groupchat, es
 2018-01-24
 --------------------------------------------------------------
 Gian :: Fix makefile bug
+==============================================================
+
+2018-01-25
+--------------------------------------------------------------
+Daniel & Jeffrey :: File with chatlog in it. Messages sent from one client to all others. Bug fixes, and bug creations.
 ==============================================================
