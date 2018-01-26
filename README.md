@@ -1,11 +1,12 @@
 # termachat
-A chatroom that runs purely in the terminal. Create a chatroom over intranet and connect multiple clients!
+A chatroom that runs purely in the terminal. Creates a chatroom over intranet and connects multiple clients. Utilizes a custom semaphore implementation to handle requests and prevent race conditions, as well as linked lists for chatroom storage. 
 
 ### Features
-+ Create chatrooms and have multiple users join!
++ Create chatrooms and have multiple users join
 + Create a terminal username
 + Communicate within only the chatroom
 + List out chatrooms and their members
++ Delete and private message users
 
 ### In development
 
@@ -28,11 +29,6 @@ A chatroom that runs purely in the terminal. Create a chatroom over intranet and
     ```$ ./client```
 
    By default, the client will use the localhost address *(127.0.0.1)* if no other address is provided
-
-### Design implementations
-
-+ Semaphores to control access to subprocess and block race conditions
-+ Linked list structure to store information about chatrooms and their clients
    
 ### How to use
 
