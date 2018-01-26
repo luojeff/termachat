@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
   int did_read;
   while (1) {
     
-    printf("[%s @ %s]: ", user_name, current_group);
+    printf("[%s @ %s]: \n", user_name, current_group);
     did_read = 0;
     //reads from user and socket 
     while(did_read <= 0){
@@ -87,7 +87,7 @@ int handle_user_input(int input, int socket, char *input_buffer){
   bytes_read = read(input, &input_buffer, 10000);
   if(bytes_read > 0){
     write(socket, &input_buffer, 10000);
-  }
+  } 
   return bytes_read;
 }
 

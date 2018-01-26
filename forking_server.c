@@ -185,7 +185,8 @@ void subprocess(int socket, char *user, char* fifo_name) {
   read(socket, client_name, sizeof(client_name));
   user = client_name;
 
-  while (repeat && ((read(socket, buffer, sizeof(buffer)) > 0))) {
+  while (repeat) {
+    read(socket, buffer, sizeof(buffer));
     printf("[SUB %d - %s]: Received [%s]\n", getpid(), user, buffer);
     
     char write_to_client[BUFFER_SIZE];
