@@ -128,7 +128,7 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
       
     } else if (strcmp("display-help", command) == 0){
       int fd = open("help", O_RDONLY);
-      char contents[512];
+      char contents[1024];
       memset(contents, 0, sizeof(contents));
       read(fd, contents, sizeof(contents));
       printf("%s\n", contents);
