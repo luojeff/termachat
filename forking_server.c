@@ -106,10 +106,10 @@ void mainserver(int pipe_to_main[2]){
 	while(read(pipe_to_main[READ], &sub_pid, 4) <= 0);
 	
 	sem_ids[sub_count] = create_semaphore(sub_pid);
-	printf("[MAIN %d]: Semaphore {sem_id: %d} created!\n", getpid(), sem_ids[sub_count]);
+	//printf("[MAIN %d]: Semaphore {sem_id: %d} created!\n", getpid(), sem_ids[sub_count]);
 	sub_count++;
 
-	printf("DEBUG:: Add a new client into table: %d\n", sub_pid);
+	//printf("DEBUG:: Add a new client into table: %d\n", sub_pid);
         struct client new_client;
         new_client.client_sub_pid = sub_pid;
         new_client.chatroom_index = -1;
@@ -170,6 +170,7 @@ void subprocess(int socket, char *user, char* fifo_name) {
   while(read(socket, client_name, sizeof(client_name)) <= 0)
   user = client_name;
   write(socket, client_name, MAX_USERNAME_LENGTH);
+  
   while (repeat) {
     if(read(socket, buffer, sizeof(buffer)) > 0){
       printf("[SUB %d - %s]: Received [%s]\n", getpid(), user, buffer);
@@ -390,14 +391,14 @@ void handle_sub_command(char *s, char (*to_sub)[]){
           for(i=0; i<chatrooms_added; i++){
 	    curr = existing_chatrooms[i];
 	    
-	    if(curr.is_valid && (strcmp(curr[i].name, parsed[1]) == 0)) {
+	    if(curr.is_valid && (strcmp(curr.name, parsed[1]) == 0)) {
 
 	      struct client cl = clients[client_index];
 	      
 	      // Add into chatroom member
-	      curr[i].members = insert_front(curr[i].members, cl);
-	      curr[i].num_members++;
-	      curr[i].is_valid = 1;
+	      curr.members = insert_front(curr.members, cl);
+	      curr.num_members++;
+	      curr.is_valid = 1;
 	      
 	      clients[client_index].chatroom_index = i;
 	      clients[client_index].status = 2;	      

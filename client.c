@@ -65,12 +65,14 @@ int main(int argc, char **argv) {
   char outside_buffer[BUFFER_SIZE];
 
   int n_fd = 100;
-  int input = dup3(0, n_fd, O_NONBLOCK);
+  int input = dup3(0, n_fd, O_NONBLOCK); // stdin
   int did_read;
+  
   while (1) {
     
     printf("[%s @ %s]: \n", user_name, current_group);
     did_read = 0;
+    
     //reads from user and socket 
     while(did_read <= 0){
       did_read = handle_user_input(input, current_socket, input_buffer);
@@ -86,23 +88,24 @@ int main(int argc, char **argv) {
 
 int handle_user_input(int input, int socket, char *input_buffer){
   int bytes_read;
-  bytes_read = read(input, &input_buffer, 10000);
+  bytes_read = read(input, &input_buffer, BUFFER_SIZE);
   if(bytes_read > 0){
-    write(socket, &input_buffer, 10000);
+    write(socket, &input_buffer, BUFFER_SIZE);
   } 
   return bytes_read;
 }
 
 int receive_message(int socket, char *outside_buffer){
   int bytes_read;
-  bytes_read = read(socket, &outside_buffer, 10000);
+  bytes_read = read(socket, &outside_buffer, BUFFER_SIZE);
   if(bytes_read > 0){
     *strchr(outside_buffer, '\n') = 0;
     if (strcmp(outside_buffer, "wait") == 0) {
       read(socket, outside_buffer, sizeof(outside_buffer));
     }
-   printf("Recieved: [%s]\n", outside_buffer); 
+   printf("Received: [%s]\n", outside_buffer); 
   }
+  
   return bytes_read;
 }
 
@@ -127,7 +130,7 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
       
     } else if (strcmp("display-help", command) == 0){
       int fd = open("help", O_RDONLY);
-      char contents[512];
+      char contents[1024];
       read(fd, contents, sizeof(contents));
       printf("%s\n", contents);
       close(fd);
