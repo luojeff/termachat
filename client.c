@@ -99,7 +99,8 @@ int receive_message(int socket, char *outside_buffer){
   int bytes_read;
   bytes_read = read(socket, &outside_buffer, BUFFER_SIZE);
   if(bytes_read > 0){
-    *strchr(outside_buffer, '\n') = 0;
+    char *new_line;
+    if((new_line = strchr(outside_buffer, '\n')) != NULL) *new_line = '\0';
     if (strcmp(outside_buffer, "wait") == 0) {
       read(socket, outside_buffer, sizeof(outside_buffer));
     }
