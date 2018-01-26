@@ -20,7 +20,18 @@ struct client {
   int client_sub_pid;
   int chatroom_index;
   int status; /*0: disconnected; 1: connected; 2: joined a room */
-  char *user_name;
+  char *user_name;  
 };
+
+void subprocess(int, char *, char*);
+void listening_server(int, int[2]);
+void mainserver(int[2]);
+void handle_sub_command(char *, char (*)[]);
+void handle_info_command(char *, char (*)[]);
+int handle_main_command(char *, char (*)[], char (*)[], char *);
+void print_error();
+void intHandler(int);
+int find_client_index(int);
+char *print_chatrooms();
 
 #endif
