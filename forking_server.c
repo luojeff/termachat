@@ -169,7 +169,6 @@ void subprocess(int socket, char *user, char* fifo_name) {
   // Read client user name
   while(read(socket, client_name, sizeof(client_name)) <= 0)
   user = client_name;
-  write(socket, client_name, MAX_USERNAME_LENGTH);
   
   while (repeat) {
     if(read(socket, buffer, sizeof(buffer)) > 0){
