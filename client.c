@@ -30,8 +30,7 @@ int main(int argc, char **argv) {
   int server_socket, current_socket;
 
   /* Current location of USER */
-  int MAX_GROUP_NAME_SIZE = 32;
-  char current_group[MAX_GROUP_NAME_SIZE];
+  char current_group[MAX_GROUPNAME_SIZE];
   strcpy(current_group, "PUB");
 
   printf("------------------- Termachat --------------------\n");
@@ -182,10 +181,14 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
       printf("Already joined other room!\n");
     } else if(strcmp("response", next) == 0) {
       printf("{Replace w/ chatroom chat stuff...}\n");
-    } else if(strcmp("written", next) == 0){
-      printf("Wrote to chat!\n");
-    } else if(strcmp("left", next) == 0){
-      printf("Left chatroom!\n");
+    } else if(strcmp("written", next) == 0) {
+      printf("Wrote to chat!\n"); // FOR TESTING
+    } else if(strcmp("left-chat", next) == 0) {
+      printf("Left chatroom %s!\n", args[2]);
+    } else if (strcmp("chat-has-members", next) == 0) {
+      printf("Unable to delete -- chatroom has members!\n");
+    } else if (strcmp("delete-success", next) == 0) {
+      printf("Chatroom successfully deleted!\n");
     } else {
       printf("No handling case for client -- check server code!\n");
     }

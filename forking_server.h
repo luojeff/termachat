@@ -9,9 +9,9 @@
 struct chatroom {
   char *name;
   int num_members;
-  int port;
+  int is_valid;
   int server_sd;
-  char *fifo_to_main;  
+  int curr_line;
   struct node *members;
   char contents[CONTENTS_SIZE][BUFFER_SIZE];
 };

@@ -227,7 +227,7 @@ void handle_sub_command(char *s, char (*to_sub)[]){
     if(strcmp(parsed[0], "sub-wants-list") == 0){
 
       // To be given to client to parse
-      char to_send[BUFFER_SIZE] = "#t|SERVER|\n--------------- Available chatrooms ---------------\n";
+      char to_send[BUFFER_SIZE] = "#t|SERVER|\n---------- Available chatrooms ----------\n";
 
       strcat(to_send, print_chatrooms());
       strcat(to_send, "#");
@@ -239,12 +239,32 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 
       strcpy(*to_sub, chat);
       
+    } else if (strcmp(parsed[0], "sub-wants-leave") == 0) {
+      
+      int client_sub_pid = atoi(parsed[1]);
+      int client_index = find_client_index(client_sub_pid);
+      char *name;
+      
+      if (client_index > -1) {
+        int chatroom_index = clients[client_index].chatroom_index;
+	struct client cl = clients[client_index];	
+
+        if (chatroom_index > -1) {
+          existing_chatrooms[chatroom_index].members = delete_member(existing_chatrooms[chatroom_index].members, cl);
+	  existing_chatrooms[chatroom_index].num_members--;	  
+	  name = existing_chatrooms[chatroom_index].name;
+	  clients[client_index].chatroom_index = -1;
+	  clients[client_index].status = 0;
+        }
+      }      
+
+      sprintf(*to_sub, "#o|left-chat|%s#", name);      
     } else {
       strcpy(*to_sub, invalid_request);
     }
     
   } else if (num_phrases == 2) {
-    if (strcmp(parsed[0], "create") == 0) {      
+    if (strcmp(parsed[0], "create") == 0) {
 
       // Check to see if chatroom name is taken      
       int i;
@@ -270,9 +290,25 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 	chatrm.num_members = 0;
 	chatrm.members = NULL;
 	//chatrm.contents = (char **)malloc(CONTENTS_SIZE * BUFFER_SIZE);
+
 	
-        existing_chatrooms[chatrooms_added] = chatrm;
-        chatrooms_added++;
+	// Attempt to insert where there is an invalid (deleted chatroom)
+	int i;
+	int done = 0;
+	for(i=0; i<chatrooms_added; i++){
+	  if(existing_chatrooms[i].is_valid == 0){
+	    existing_chatrooms[i] = chatrm;
+	    done = 1;
+	    break;
+	  }
+	}
+
+	// If no invalid chatroom before, insert at the end and increment
+	if(!done) {
+	  existing_chatrooms[chatrooms_added] = chatrm;
+	  chatrooms_added++;
+	}
+	
         printf("[MAIN %d]: chatroom %s created\n", getpid(), parsed[1]);
         strcpy(*to_sub, "#o|chatroom-created#");
       }
@@ -298,6 +334,30 @@ void handle_sub_command(char *s, char (*to_sub)[]){
       
       strcpy(*to_sub, "#c|exit#");
       
+    } else if (strcmp(parsed[0], "delete") == 0) {
+      int client_sub_pid = atoi(parsed[1]);
+      char *cr_name = parsed[2];
+
+      int i;
+      for(i=0; i<chatrooms_added; i++){
+	struct chatroom curr = existing_chatrooms[i];
+
+	if(strcmp(cr_name, curr.name) == 0) {
+	  if(curr.num_members > 0) {
+	    
+	    strcpy(*to_sub, "#o|chat-has-members#");
+	    break;
+	  } else if (curr.num_members == 0) {
+	    
+	    // Go ahead and delete
+	    free(curr.name);
+	    curr.is_valid = 0;
+	    strcpy(*to_sub, "#o|delete-success#");	    
+	    break;
+	  }
+	}
+      }      
+      
     } else {
       strcpy(*to_sub, invalid_request);
     }
@@ -308,6 +368,8 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 
       char *sender_pid = parsed[1];
       char *contents = parsed[2];
+
+      
       
       strcpy(*to_sub, "#o|written#");
       
@@ -321,23 +383,27 @@ void handle_sub_command(char *s, char (*to_sub)[]){
       if (client_index > -1) {
 	if (clients[client_index].chatroom_index == -1) {
 
+	  struct chatroom curr;
+
           int i;
 	  int pass = 0;
           for(i=0; i<chatrooms_added; i++){
-	    if(strcmp(existing_chatrooms[i].name, parsed[1]) == 0) {
+	    curr = existing_chatrooms[i];
+	    
+	    if(curr.is_valid && (strcmp(curr[i].name, parsed[1]) == 0)) {
 
 	      struct client cl = clients[client_index];
 	      
 	      // Add into chatroom member
-	      existing_chatrooms[i].members = insert_front(existing_chatrooms[i].members, cl);
-	      existing_chatrooms[i].num_members ++;
-	      clients[client_index].chatroom_index = i;
-	      clients[client_index].status = 2;
+	      curr[i].members = insert_front(curr[i].members, cl);
+	      curr[i].num_members++;
+	      curr[i].is_valid = 1;
 	      
+	      clients[client_index].chatroom_index = i;
+	      clients[client_index].status = 2;	      
 	      clients[client_index].user_name = realloc(clients[client_index].user_name, strlen(client_name)*sizeof(char)+1);
+	      
 	      strcpy(clients[client_index].user_name, client_name);
-	      //printf("Did this! {%s}\n", clients[client_index].user_name);
-
 	      sprintf(*to_sub, "#c|join|%s#", parsed[1]);
 	      pass = 1;
 	      break;
@@ -375,19 +441,22 @@ int find_client_index(int client_sub_pid) {
   return client_index;
 }
 
-
 char *print_chatrooms() {
   
   char *s = (char *)malloc(200 * sizeof(char));
   int i;
   for(i=0; i<chatrooms_added;i++) {
     struct chatroom chatroom = existing_chatrooms[i];
-    sprintf(s, "%s%s: ", s, chatroom.name);
+
+    if(chatroom.is_valid > 0){
+      sprintf(s, "%s%s: ", s, chatroom.name);
     
-    if (chatroom.num_members > 0)
-      sprintf(s, "%s%s", s, print_list(chatroom.members));    
-    sprintf(s, "%s\n", s);
+      if (chatroom.num_members > 0)
+	sprintf(s, "%s%s", s, print_list(chatroom.members));    
+      sprintf(s, "%s\n", s);
+    }
   }
+  
   return s;
 }
 
@@ -465,7 +534,7 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *c
       return 1;
       
     } else if (strcmp(parsed[0], "@leave") == 0) {
-      strcpy(*to_client, "#o|left#");
+      strcpy(*to_client, "wait#");
       sprintf(*to_fifo, "sub-wants-leave|%d", getpid());
       
       return 0;
@@ -497,19 +566,19 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *c
       sprintf(*to_fifo, "join|%s|%d|%s", parsed[1], getpid(), client_name);
       
       /*int i;
-      for(i=0; i<sizeof(existing_chatrooms)/sizeof(existing_chatrooms[0]); i++){
+	for(i=0; i<sizeof(existing_chatrooms)/sizeof(existing_chatrooms[0]); i++){
 	curr_cr = existing_chatrooms[i];
 	if(strcmp(curr_cr.name, cr_name) == 0) {
-	  sprintf(*to_client, "#c|join|%s#", int_to_str(curr_cr.port)); 
-	  pass = 1;
+	sprintf(*to_client, "#c|join|%s#", int_to_str(curr_cr.port)); 
+	pass = 1;
 	}	
-      }
+	}
       
-      // SHOULD RETURN PORT OF RESPECTIVE CHATROOM
+	// SHOULD RETURN PORT OF RESPECTIVE CHATROOM
 
-      if(!pass){
+	if(!pass){
 	strcpy(*to_client, "#o|chatroom-noexist#");
-      }
+	}
       */
 
       return 1;
@@ -520,43 +589,43 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *c
       strcpy(*to_client, "wait");
       sprintf(*to_fifo, "create|%s", parsed[1]);
       /*	
-      {    
-	char *cr_name = parsed[1];
-	int lis_sock = server_setup(GPORT++);
-	//printf("lis_sock = %d\n", lis_sock);	
+		{    
+		char *cr_name = parsed[1];
+		int lis_sock = server_setup(GPORT++);
+		//printf("lis_sock = %d\n", lis_sock);	
 
-	printf("[MAIN %d]: chatroom %s created on port %s\n", getpid(), cr_name, int_to_str(GPORT-1));	
+		printf("[MAIN %d]: chatroom %s created on port %s\n", getpid(), cr_name, int_to_str(GPORT-1));	
 
-	struct chatroom chatrm;
-	chatrm.name = cr_name;
-	existing_chatrooms[chatrooms_added] = chatrm;
-	chatrooms_added++;
+		struct chatroom chatrm;
+		chatrm.name = cr_name;
+		existing_chatrooms[chatrooms_added] = chatrm;
+		chatrooms_added++;
 	
 
-	// Find a way to redo this code
-	int f = fork();
+		// Find a way to redo this code
+		int f = fork();
     
-	if (f == 0) {
-	  int client_sock = server_connect(lis_sock);
-	  printf("client_sock = %d\n", client_sock);
+		if (f == 0) {
+		int client_sock = server_connect(lis_sock);
+		printf("client_sock = %d\n", client_sock);
       
-	  if (client_sock != -1) {
-	    _subprocess(client_sock, cr_name);
+		if (client_sock != -1) {
+		_subprocess(client_sock, cr_name);
 
-	    printf("[MAIN %d]: Chatroom on port %s closed!\n", getpid(), int_to_str(GPORT-1));
-	  } else {
-	    printf("[MAIN %d]: Failed to create chatroom!\n", getpid());
-	  }	
-	}  else {
-	  strcpy(*to_client, "#o|chatroom-success#");
-	}
-      }
+		printf("[MAIN %d]: Chatroom on port %s closed!\n", getpid(), int_to_str(GPORT-1));
+		} else {
+		printf("[MAIN %d]: Failed to create chatroom!\n", getpid());
+		}	
+		}  else {
+		strcpy(*to_client, "#o|chatroom-success#");
+		}
+		}
       */
 
       return 1;
       
     } else if (strcmp(parsed[0], "@w") == 0) {
-      strcpy(*to_client, "wait");      
+      strcpy(*to_client, "wait");
 
       // Parse out text
       int i;
@@ -574,6 +643,10 @@ int handle_main_command(char *s, char (*to_client)[], char (*to_fifo)[], char *c
       sprintf(*to_fifo, "write|%d|%s", getpid(), to_write);
       return 1;      
       
+    } else if (strcmp(parsed[0], "@delete") == 0) {
+      sprintf(*to_fifo, "delete|%d|%s", getpid(), parsed[1]);
+      strcpy(*to_client, "deleted");      
+      return 0;
     } else {
       
       strcpy(*to_client, "#c|display-invalid#");

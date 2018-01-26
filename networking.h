@@ -19,7 +19,7 @@
 #define NETWORKING_H
 
 #define ATTEMPTS 50
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 512
 #define PORT 10001 // default port attempts start at
 #define TEST_IP "127.0.0.1"
 
@@ -27,6 +27,7 @@
 #define MAX_NUM_MEMBERS 16
 #define MAX_NUM_CHATROOMS 16
 #define MAX_CLIENTS ((MAX_NUM_MEMBERS) * (MAX_NUM_CHATROOMS + 1))
+#define MAX_GROUPNAME_SIZE 32
 #define MAX_USERNAME_LENGTH 32
 
 #define READ 0
