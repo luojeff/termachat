@@ -139,7 +139,7 @@ void mainserver(int pipe_to_main[2]){
 	// Wait for subprocess to read before writing
 	wait_semaphore(sem_id);	
 	write(sub_fd, to_sub, sizeof(to_sub));
-	printf("[MAIN %d]: Sent response [%s] to subprocess\n", getpid(), to_sub);
+	printf("[MAIN %d]: Sent response to subprocess\n", getpid());
 	free_semaphore(sem_id);
       }
     }
@@ -178,7 +178,7 @@ void subprocess(int socket, char *user, char* fifo_name) {
       char write_to_fifo[BUFFER_SIZE], read_from_fifo[BUFFER_SIZE];
     
       int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo, client_name);
-      printf("DEBUG: %s\n", write_to_client);
+      //printf("DEBUG: %s\n", write_to_client);
       write(socket, write_to_client, sizeof(write_to_client));
     
       // Listen to chat response from mainserver?
@@ -366,13 +366,13 @@ void handle_sub_command(char *s, char (*to_sub)[]){
       int client_sub_pid = atoi(parsed[1]);
       int client_index = find_client_index(client_sub_pid);
       char *name;
-      int pass=1;
+      int pass = 1;
       
       if (client_index > -1) {
         int chatroom_index = clients[client_index].chatroom_index;
-	struct client cl = clients[client_index];
+	struct client cl = clients[client_index];	
 
-	if (chatroom_index > -1) {
+        if (chatroom_index > -1) {
           existing_chatrooms[chatroom_index].members = delete_member(existing_chatrooms[chatroom_index].members, cl);
 	  existing_chatrooms[chatroom_index].num_members--;	  
 	  name = existing_chatrooms[chatroom_index].name;
@@ -380,15 +380,14 @@ void handle_sub_command(char *s, char (*to_sub)[]){
 	  clients[client_index].status = 1;
 	  clients[client_index].pos = 0;
         } else {
-	  pass=0;
+	  pass = 0;
 	}
-	
       }
 
       if(pass)
 	sprintf(*to_sub, "#o|left-chat|%s#", name);
       else
-	sprintf(*to_sub, "#o|nctl|%s#", name);
+	sprintf(*to_sub, "#o|unable-leave|%s#", name);
     } else {
       strcpy(*to_sub, invalid_request);
     }

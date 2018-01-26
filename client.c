@@ -128,7 +128,7 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
       
     } else if (strcmp("display-help", command) == 0){
       int fd = open("help", O_RDONLY);
-      char contents[1024];
+      char contents[512];
       memset(contents, 0, sizeof(contents));
       read(fd, contents, sizeof(contents));
       printf("%s\n", contents);
@@ -192,8 +192,8 @@ void handle_sub_response(char *input_buffer, int current_socket, char (*current_
     } else if(strcmp("left-chat", next) == 0) {
       strcpy(*current_group, "PUB");
       printf("Left chatroom %s!\n", args[2]);
-    } else if(strcmp("nctl", next) == 0) {
-      printf("You cannot leave %s. @exit to quit client and subprocess.\n", *current_group);
+    } else if(strcmp("unable-leave", next) == 0) {      
+      printf("Unable to leave %s. @exit to quit client and subprocess\n", *current_group);
     } else if (strcmp("chat-has-members", next) == 0) {
       printf("Unable to delete -- chatroom has members!\n");
     } else if (strcmp("delete-success", next) == 0) {
