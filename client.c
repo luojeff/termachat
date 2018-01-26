@@ -64,25 +64,41 @@ int main(int argc, char **argv) {
   char input_buffer[BUFFER_SIZE];
   char outside_buffer[BUFFER_SIZE];
 
-  int n_fd = 100;
-  int input = dup3(0, n_fd, O_NONBLOCK); // stdin
+  //int n_fd = 100;
+  //int input = dup3(0, n_fd, O_NONBLOCK); // stdin
   int did_read;
-  
+  fd_set read_fds;
+
+  FD_ZERO(&read_fds);
+  FD_SET(STDIN_FILENO, &read_fds);
+  FD_SET(current_socket, &read_fds);
+
   while (1) {
     
-    printf("[%s @ %s]: \n", user_name, current_group);
-    did_read = 0;
-    
-    //reads from user and socket 
+    printf("[%s @ %s]: ", user_name, current_group);
+    fflush(stdout);
+
+    select(current_socket + 1, &read_fds, NULL, NULL, NULL);
+
+    if(FD_ISSET(STDIN_FILENO, &read_fds)){
+       handle_user_input(STDIN_FILENO, current_socket, input_buffer); 
+    }
+    if(FD_ISSET(current_socket, &read_fds)){
+      receive_message(current_socket, outside_buffer);
+    }
+
+    /*did_read = 0;
+
+    //reads from user and socket
     while(did_read <= 0){
       did_read = handle_user_input(input, current_socket, input_buffer);
-      
+
       //handles any messages sent by the server
       int message_received = receive_message(current_socket, outside_buffer);
       if(message_received > 0){
 	handle_sub_response(input_buffer, current_socket, &current_group);    
       }
-    }
+    }*/
   }
 }
 
@@ -91,7 +107,7 @@ int handle_user_input(int input, int socket, char *input_buffer){
   bytes_read = read(input, &input_buffer, BUFFER_SIZE);
   if(bytes_read > 0){
     write(socket, &input_buffer, BUFFER_SIZE);
-  } 
+  }
   return bytes_read;
 }
 
@@ -106,7 +122,7 @@ int receive_message(int socket, char *outside_buffer){
     }
    printf("Received: [%s]\n", outside_buffer); 
   }
-  
+
   return bytes_read;
 }
 
