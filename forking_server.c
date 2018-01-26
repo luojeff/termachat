@@ -59,29 +59,27 @@ void listening_server(int global_listen_socket, int pipe_to_main[2]){
     
     if((global_client_socket = server_connect(global_listen_socket)) != -1){
       printf("[MAIN %d]: Sockets connected!\n", getpid());
-    } else {
-      print_error();
-      exit(0);
+    
+      //creating a FIFO to allow interprocess communication
+      char fifo_name[20];
+      snprintf(fifo_name, sizeof(fifo_name), "./FIFO%d", global_client_socket);
+      printf("[MAIN]: Creating fifo [%s]\n", fifo_name);
+      mkfifo(fifo_name, 0666);
+      printf("[MAIN]: Fifo created!\n");
+    
+      //fork off new process to talk to client and have it connect to the new FIFO
+      int child_pid = fork();
+      if(child_pid == 0) {
+        subprocess(global_client_socket, "USER", fifo_name);
+        exit(0);
+      }
+    
+      write(pipe_to_main[WRITE], fifo_name, 20);
+      write(pipe_to_main[WRITE], &child_pid, sizeof(child_pid));
     }
-    
-    //creating a FIFO to allow interprocess communication
-    char fifo_name[20];
-    snprintf(fifo_name, sizeof(fifo_name), "./FIFO%d", global_client_socket);
-    printf("[MAIN]: Creating fifo [%s]\n", fifo_name);
-    mkfifo(fifo_name, 0666);
-    printf("[MAIN]: Fifo created!\n");
-    
-    //fork off new process to talk to client and have it connect to the new FIFO
-    int child_pid = fork();
-    if(child_pid == 0) {
-      subprocess(global_client_socket, "USER", fifo_name);
-      exit(0);
-    }
-    
-    write(pipe_to_main[WRITE], fifo_name, 20);
-    write(pipe_to_main[WRITE], &child_pid, sizeof(child_pid));
-  }
+   } 
 
+	
   exit(0);
 }
 
@@ -169,48 +167,49 @@ void subprocess(int socket, char *user, char* fifo_name) {
     printf("[SUB %d - %s]: Error creating FD!\n", getpid(), user);
 
   // Read client user name
-  read(socket, client_name, sizeof(client_name));
+  while(read(socket, client_name, sizeof(client_name)) <= 0)
   user = client_name;
-
+  write(socket, client_name, MAX_USERNAME_LENGTH);
   while (repeat) {
-    read(socket, buffer, sizeof(buffer));
-    printf("[SUB %d - %s]: Received [%s]\n", getpid(), user, buffer);
+    if(read(socket, buffer, sizeof(buffer)) > 0){
+      printf("[SUB %d - %s]: Received [%s]\n", getpid(), user, buffer);
     
-    char write_to_client[BUFFER_SIZE];
-    char write_to_fifo[BUFFER_SIZE], read_from_fifo[BUFFER_SIZE];
+      char write_to_client[BUFFER_SIZE];
+      char write_to_fifo[BUFFER_SIZE], read_from_fifo[BUFFER_SIZE];
     
-    int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo, client_name);
-    write(socket, write_to_client, sizeof(write_to_client));
-    
-    // Listen to chat response from mainserver?
-    // Send that stuff to client    
-
-    // Handle writing to mainserver and receive a response
-    if(resp > 0) {
-      
-      if(sem_id <= 0)
-	sem_id = get_semaphore(getpid());
-      
-      if(is_used(sem_id) == 0)
-	wait_semaphore(sem_id);
-      
-      write(fd, write_to_fifo, sizeof(write_to_fifo));
-      printf("[SUB %d - %s]: Wrote to MAIN [%s]\n", getpid(), user, write_to_fifo);      
-
-      // Allow mainserver to write
-      free_semaphore(sem_id);
-      memset(read_from_fifo, 0, BUFFER_SIZE);
-      
-      while(read(fd, read_from_fifo, sizeof(read_from_fifo)) <= 0);
-      printf("[SUB %d - %s]: Received mainserver response\n", getpid(), user);
-
-      // Process read_from_fifo
-      handle_info_command(read_from_fifo, &write_to_client);
-
-      // Write back to client once again
+      int resp = handle_main_command(buffer, &write_to_client, &write_to_fifo, client_name);
       write(socket, write_to_client, sizeof(write_to_client));
-    }
-  }
+    
+      // Listen to chat response from mainserver?
+      // Send that stuff to client    
+
+      // Handle writing to mainserver and receive a response
+      if(resp > 0) {
+      
+        if(sem_id <= 0)
+       	  sem_id = get_semaphore(getpid());
+      
+        if(is_used(sem_id) == 0)
+	  wait_semaphore(sem_id);
+      
+        write(fd, write_to_fifo, sizeof(write_to_fifo));
+        printf("[SUB %d - %s]: Wrote to MAIN [%s]\n", getpid(), user, write_to_fifo);      
+
+        // Allow mainserver to write
+        free_semaphore(sem_id);
+        memset(read_from_fifo, 0, BUFFER_SIZE);
+      
+        while(read(fd, read_from_fifo, sizeof(read_from_fifo)) <= 0);
+        printf("[SUB %d - %s]: Received mainserver response\n", getpid(), user);
+
+        // Process read_from_fifo
+        handle_info_command(read_from_fifo, &write_to_client);
+
+        // Write back to client once again
+        write(socket, write_to_client, sizeof(write_to_client));
+      }
+   } 
+ }
   
   close(socket);
   exit(0);

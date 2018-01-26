@@ -102,6 +102,7 @@ int receive_message(int socket, char *outside_buffer){
     if (strcmp(outside_buffer, "wait") == 0) {
       read(socket, outside_buffer, sizeof(outside_buffer));
     }
+   printf("Recieved: [%s]\n", outside_buffer); 
   }
   return bytes_read;
 }
